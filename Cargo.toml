@@ -1,0 +1,21 @@
+[package]
+name = "jstar"
+version = "0.1.0"
+authors = ["Fabrizio Pietrucci <mail@fabrizio-pietrucci.it>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["jstar", "rust-jstar", "bindings"]
+repository = "https://github.com/bamless/jstar-rs"
+documentation = "https://docs.rs/jstar"
+description = "Safe bindings to the J* language API"
+categories = ["api-bindings"]
+edition = "2021"
+
+[dependencies]
+jstar-sys = { path = "jstar-sys", version="0.1.0+1.9.0"}
+thiserror = "1.0.43"
+
+[features]
+vendored-jstar=["jstar-sys/vendored"]
+static-jstar=["jstar-sys/static"]
+

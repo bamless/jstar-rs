@@ -1,0 +1,3 @@
+[submodule "jstar-sys/jstar"]
+	path = jstar-sys/jstar
+	url = https://github.com/bamless/jstar.git
