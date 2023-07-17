@@ -18,12 +18,12 @@ pub enum JStarResult {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JStarImportResult {
-    code: *const c_char,
-    code_len: usize,
-    path: *const c_char,
-    reg: *const c_void,
-    finalize: Option<JStarImportFinalizeCB>,
-    user_data: *mut c_void,
+    pub code: *const c_char,
+    pub code_len: usize,
+    pub path: *const c_char,
+    pub reg: *mut JStarNativeReg,
+    pub finalize: Option<JStarImportFinalizeCB>,
+    pub user_data: *const c_void,
 }
 
 impl Default for JStarImportResult {
@@ -32,9 +32,9 @@ impl Default for JStarImportResult {
             code: std::ptr::null() as *const c_char,
             code_len: 0,
             path: std::ptr::null() as *const c_char,
-            reg: std::ptr::null() as *const c_void,
+            reg: std::ptr::null_mut() as *mut JStarNativeReg,
             finalize: None,
-            user_data: std::ptr::null_mut() as *mut c_void,
+            user_data: std::ptr::null_mut() as *const c_void,
         }
     }
 }
