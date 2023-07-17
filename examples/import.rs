@@ -1,12 +1,12 @@
 use jstar::{
     self,
-    conf::ConfBuilder,
+    conf::Conf,
     error::Result,
     vm::{ImportResult, Module, NewVM},
 };
 
 fn main() -> Result<()> {
-    let conf = ConfBuilder::new()
+    let conf = Conf::new()
         .error_callback(Box::new(|_, file, line, msg| {
             if let Some(line) = line {
                 eprintln!("Error {file} [line:{line}]:");
@@ -30,8 +30,7 @@ fn main() -> Result<()> {
             } else {
                 ImportResult::Error
             }
-        }))
-        .build();
+        }));
 
     let vm = NewVM::new(conf);
     let mut vm = vm.init_runtime();
