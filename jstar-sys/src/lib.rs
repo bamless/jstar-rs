@@ -152,6 +152,25 @@ extern "C" {
     pub fn jsrGetStringSz(vm: *mut JStarVM, slot: c_int) -> usize;
     pub fn jsrGetString(vm: *mut JStarVM, slot: c_int) -> *const c_char;
 }
+//
+// -----------------------------------------------------------------------------
+// TYPE CHECKING FUNCTIONS
+// -----------------------------------------------------------------------------
+
+extern "C" {
+    pub fn jsrIsNumber(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsInteger(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsString(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsList(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsTuple(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsBoolean(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsHandle(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsNull(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsInstance(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsTable(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsFunction(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrIsUserdata(vm: *mut JStarVM, slot: c_int) -> bool;
+}
 
 // -----------------------------------------------------------------------------
 // NATIVES AND NATIVE REGISTRATION

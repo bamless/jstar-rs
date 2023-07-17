@@ -1,4 +1,5 @@
 use crate::conf::Conf;
+use crate::convert::FromJStar;
 use crate::error::Error;
 use crate::error::Result;
 use crate::ffi::{self, jsrEvalString, jsrFreeVM, JStarConf, JStarVM};
@@ -7,7 +8,22 @@ use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
 use std::path::PathBuf;
 
-#[non_exhaustive]
+pub type Index = c_int;
+
+pub struct StackRef<'a, 'b> {
+    index: Index,
+    vm: &'a VM<'b>,
+}
+
+impl<'a, 'b> StackRef<'a, 'b> {
+    pub fn get<T>(&self) -> Option<T>
+    where
+        T: FromJStar,
+    {
+        T::from_jstar(self.vm, self.index)
+    }
+}
+
 pub struct NewVM<'a> {
     vm: *mut ffi::JStarVM,
     ownership: VMOwnership<'a>,
@@ -99,6 +115,29 @@ impl<'a> VM<'a> {
             Ok(())
         }
     }
+
+    pub fn push_number(&mut self, number: f64) {
+        unsafe { ffi::jsrPushNumber(self.vm, number) };
+    }
+
+    pub fn is_number(&self, slot: Index) -> bool {
+        unsafe { ffi::jsrIsNumber(self.vm, slot) }
+    }
+
+    pub fn get_number(&self, slot: Index) -> Option<f64> {
+        if !self.is_number(slot) {
+            None
+        } else {
+            Some(unsafe { ffi::jsrGetNumber(self.vm, slot) })
+        }
+    }
+
+    pub fn get_top<'vm>(&'vm self) -> StackRef<'vm, 'a> {
+        StackRef {
+            index: unsafe { ffi::jsrTop(self.vm) },
+            vm: self,
+        }
+    }
 }
 
 impl<'a> Drop for VM<'a> {
@@ -115,17 +154,21 @@ pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> ImportResult + 'a>
 pub struct ImportModule {
     code: Vec<u8>,
     path: PathBuf,
-    reg:  *mut ffi::JStarNativeReg,
+    reg: *mut ffi::JStarNativeReg,
 }
 
 pub enum ImportResult {
     Success(ImportModule),
-    NotFound
+    NotFound,
 }
 
 impl ImportModule {
     pub fn new(code: Vec<u8>, path: PathBuf) -> Self {
-        ImportModule { code, path, reg: std::ptr::null_mut() }
+        ImportModule {
+            code,
+            path,
+            reg: std::ptr::null_mut(),
+        }
     }
 
     pub fn with_reg(code: Vec<u8>, path: PathBuf, reg: *mut ffi::JStarNativeReg) -> Self {
