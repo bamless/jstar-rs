@@ -1,10 +1,8 @@
-use jstar::{self, conf::ConfBuilder, error::Result, vm::NewVM};
+use jstar::{self, conf::Conf, error::Result, vm::NewVM};
 
 fn main() -> Result<()> {
-    let vm = NewVM::new(ConfBuilder::default().build());
+    let vm = NewVM::new(Conf::default());
     let mut vm = vm.init_runtime();
-
     vm.eval_string("<string>", "print('Hello from Rust 🦀!')")?;
-
     Ok(())
 }

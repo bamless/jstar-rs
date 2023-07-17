@@ -6,7 +6,7 @@ use jstar::{
 };
 
 fn main() -> Result<()> {
-    let conf = ConfBuilder::default()
+    let conf = ConfBuilder::new()
         .error_callback(Box::new(|_, file, line, msg| {
             if let Some(line) = line {
                 eprintln!("Error {file} [line:{line}]:");

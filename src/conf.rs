@@ -1,6 +1,7 @@
 use crate::ffi;
 use crate::vm::{ErrorCallback, ImportCallback};
 
+#[derive(Default)]
 pub struct Conf<'a> {
     pub starting_stack_sz: usize,
     pub first_gc_collection_point: usize,
@@ -9,26 +10,31 @@ pub struct Conf<'a> {
     pub import_callback: Option<ImportCallback<'a>>,
 }
 
-pub struct ConfBuilder<'a> {
-    conf: Conf<'a>,
-}
-
-impl<'a> Default for ConfBuilder<'a> {
-    fn default() -> Self {
+impl<'a> Conf<'a> {
+    pub fn new() -> Self {
         let jstar_conf = ffi::JStarConf::default();
-        Self {
-            conf: Conf {
-                starting_stack_sz: jstar_conf.starting_stack_sz,
-                first_gc_collection_point: jstar_conf.first_gc_collection_point,
-                heap_grow_rate: jstar_conf.heap_grow_rate,
-                error_callback: None,
-                import_callback: None,
-            },
+        Conf {
+            starting_stack_sz: jstar_conf.starting_stack_sz,
+            first_gc_collection_point: jstar_conf.first_gc_collection_point,
+            heap_grow_rate: jstar_conf.heap_grow_rate,
+            error_callback: None,
+            import_callback: None,
         }
     }
 }
 
+#[derive(Default)]
+pub struct ConfBuilder<'a> {
+    conf: Conf<'a>,
+}
+
 impl<'a> ConfBuilder<'a> {
+    pub fn new() -> Self {
+        Self {
+            conf: Conf::default()
+        }
+    }
+
     pub fn starting_stack_sz(mut self, size: usize) -> Self {
         self.conf.starting_stack_sz = size;
         self
