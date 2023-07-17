@@ -25,7 +25,7 @@ fn main() -> Result<()> {
 
                 ImportResult::Success(Module::source(
                     code.to_owned(),
-                    "hello_world.js".to_owned(),
+                    "hello_world.jsr".to_owned(),
                 ))
             } else {
                 ImportResult::Error
