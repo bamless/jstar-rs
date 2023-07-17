@@ -11,15 +11,15 @@ fn main() -> Result<()> {
     println!("{res}");
 
     50.0.to_jstar(&mut vm);
-    let sref = vm.get_top();
-    let sref2 = vm.get_top();
+    let ref1 = vm.get_top();
+    let ref2 = vm.get_top();
 
-    let n: f64 = sref.get().unwrap();
-    let n2: f64 = sref2.get().unwrap();
+    let n1: f64 = ref1.get().unwrap();
+    let n2: f64 = ref2.get().unwrap();
 
     vm.eval_string("<string>", "print('ciao')").unwrap();
 
-    println!("{n} {n2}");
+    println!("{n2} {n1}");
 
     Ok(())
 }

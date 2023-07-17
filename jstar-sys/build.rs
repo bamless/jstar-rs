@@ -10,7 +10,7 @@ fn main() {
 
     if !vendored {
         let mut cfg = pkg_config::Config::new();
-        if let Ok(lib) = cfg.statik(statik).probe("jstar") {
+        if let Ok(lib) = cfg.atleast_version("1.9").statik(statik).probe("jstar") {
             for path in &lib.include_paths {
                 println!("cargo:include={}", path.display());
             }

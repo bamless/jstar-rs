@@ -8,21 +8,7 @@ use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
 use std::path::PathBuf;
 
-pub type Index = c_int;
-
-pub struct StackRef<'a, 'b> {
-    index: Index,
-    vm: &'a VM<'b>,
-}
-
-impl<'a, 'b> StackRef<'a, 'b> {
-    pub fn get<T>(&self) -> Option<T>
-    where
-        T: FromJStar,
-    {
-        T::from_jstar(self.vm, self.index)
-    }
-}
+// TODO: use newly exposed jsrValidate stack and jsrValidateSlot to make wrappers memory safe
 
 pub struct NewVM<'a> {
     vm: *mut ffi::JStarVM,
@@ -116,6 +102,15 @@ impl<'a> VM<'a> {
         }
     }
 
+    pub fn pop(&mut self) {
+        unsafe { ffi::jsrPop(self.vm) };
+    }
+
+    pub fn pop_n(&mut self, n: i32) {
+        assert!(n >= 0, "`n` must be greater or equal to 0");
+        unsafe { ffi::jsrPopN(self.vm, n) };
+    }
+
     pub fn push_number(&mut self, number: f64) {
         unsafe { ffi::jsrPushNumber(self.vm, number) };
     }
@@ -145,6 +140,22 @@ impl<'a> Drop for VM<'a> {
         if let VMOwnership::Owned(_) = self.ownership {
             unsafe { jsrFreeVM(self.vm) };
         }
+    }
+}
+
+pub type Index = c_int;
+
+pub struct StackRef<'a, 'b> {
+    index: Index,
+    vm: &'a VM<'b>,
+}
+
+impl<'a, 'b> StackRef<'a, 'b> {
+    pub fn get<T>(&self) -> Option<T>
+    where
+        T: FromJStar,
+    {
+        T::from_jstar(self.vm, self.index)
     }
 }
 
