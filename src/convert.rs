@@ -18,8 +18,7 @@ impl<T: TryFrom<f64>> FromJStar for T {
     fn from_jstar(vm: &VM, slot: Index) -> Option<Self> {
         match vm.get_number(slot) {
             Some(n) => Self::try_from(n).ok(),
-            None => None
+            None => None,
         }
     }
 }
-
