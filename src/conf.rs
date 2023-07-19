@@ -22,7 +22,7 @@ impl<'a> Conf<'a> {
         }
     }
 
-    pub fn starting_stack_sz(&mut self, size: usize) -> &mut Self {
+    pub fn starting_stack_sz(mut self, size: usize) -> Self {
         self.starting_stack_sz = size;
         self
     }
