@@ -188,6 +188,8 @@ pub const JSTAR_MIN_NATIVE_STACK_SZ: usize = 20;
 
 extern "C" {
     pub fn jsrEnsureStack(vm: *mut JStarVM, needed: usize);
+    pub fn jsrValidateSlot(vm: *mut JStarVM, slot: c_int) -> bool;
+    pub fn jsrValidateStack(vm: *mut JStarVM) -> bool;
 }
 
 #[repr(C)]

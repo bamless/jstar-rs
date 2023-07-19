@@ -1,3 +1,5 @@
+use ffi::jsrValidateSlot;
+use ffi::jsrValidateStack;
 use ffi::JStarNativeReg;
 
 use crate::conf::Conf;
@@ -8,8 +10,6 @@ use crate::ffi::{self, jsrEvalString, jsrFreeVM, JStarConf, JStarVM};
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
-
-// TODO: use newly exposed jsrValidate stack and jsrValidateSlot to make wrappers memory safe
 
 pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>;
 pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> ImportResult + 'a>;
@@ -68,7 +68,7 @@ pub struct VM<'a> {
 }
 
 impl<'a> VM<'a> {
-    /// Construct a new `VM` wrapper starting from a raw `JStarVM` pointer.
+    /// Construct a new [VM] wrapper starting from a raw [JStarVM] pointer.
     /// Its main use is to construct a `VM` wrapper struct across ffi boundaries when only a
     /// `JStarVM` pointer is available (for example, in J* native functions).
     ///
@@ -76,7 +76,7 @@ impl<'a> VM<'a> {
     ///
     /// The caller must ensure that this wrapper lives only as long as the main `VM` wrapper does.
     /// This is to ensure that the pointer to the underlying `JStarVM` and its user-defined
-    /// callbacks (`Trampolines` struct) remain valid, since they will be dropped when the original
+    /// callbacks ([Trampolines] struct) remain valid, since they will be dropped when the original
     /// `VM` wrapper lifetime ends.
     pub unsafe fn from_ptr(vm: *mut ffi::JStarVM) -> Self {
         VM {
@@ -106,36 +106,75 @@ impl<'a> VM<'a> {
         }
     }
 
+    /// Pops one element from the VM stack.
+    /// This method panics if we try to pop more items than the stack holds.
     pub fn pop(&mut self) {
+        assert!(self.validate_slot(-1), "VM stack underflow");
+        // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrPop(self.vm) };
     }
 
+    /// Pops `n` elements from the VM stack
+    /// This method panics if we try to pop more items than the stack holds.
     pub fn pop_n(&mut self, n: i32) {
-        assert!(n >= 0, "`n` must be greater or equal to 0");
+        assert!(n > 0, "`n` must be greater than 0");
+        assert!(self.validate_slot(-n), "VM stack underflow");
+        // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrPopN(self.vm, n) };
     }
 
+    /// Push a `Number` onto the VM stack.
+    /// This method panics if there isn't enough stack space for one element.
+    /// Use [ensure_stack](#method.ensure_stack) if you are not sure the stack has enough space.
     pub fn push_number(&mut self, number: f64) {
+        assert!(self.validate_stack(), "VM stack overflow");
+        // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrPushNumber(self.vm, number) };
     }
 
     pub fn is_number(&self, slot: Index) -> bool {
+        assert!(self.validate_slot(slot), "VM stack overflow");
+        // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrIsNumber(self.vm, slot) }
     }
 
     pub fn get_number(&self, slot: Index) -> Option<f64> {
+        assert!(self.validate_slot(slot), "VM stack overflow");
         if !self.is_number(slot) {
             None
         } else {
+            // SAFETY: `slot` is a valide slot per check above, and its a `Number`
             Some(unsafe { ffi::jsrGetNumber(self.vm, slot) })
         }
     }
 
     pub fn get_top<'vm>(&'vm self) -> StackRef<'vm, 'a> {
         StackRef {
+            // SAFETY: `self.vm` is a valid J* vm pointer
             index: unsafe { ffi::jsrTop(self.vm) },
             vm: self,
         }
+    }
+
+    /// Ensure that the vm's stack can hold at least `needed` items, reallocating the stack
+    /// to add more space if needed.
+    pub fn ensure_stack(&self, needed: usize) {
+        // SAFETY: `self.vm` is a valid J* vm pointer
+        unsafe { ffi::jsrEnsureStack(self.vm, needed) };
+    }
+
+    /// Returns `true` if the provided slot is valid, i.e. it doesn't overflow or underflow the native
+    /// stack, false otherwise
+    pub fn validate_slot(&self, slot: Index) -> bool {
+        // SAFETY: `self.vm` is a valid J* vm pointer
+        unsafe { jsrValidateSlot(self.vm, slot) }
+    }
+
+    /// Returns `true` if the stack has space for one element, i.e. pushing one element will not overflow
+    /// the native stack
+    pub fn validate_stack(&self) -> bool {
+        // SAFETY: `self.vm` is a valid J* vm pointer
+        unsafe { jsrValidateStack(self.vm) }
     }
 }
 
@@ -260,7 +299,7 @@ extern "C" fn import_trampoline(
             ImportResult::Success(module) => {
                 let (code, path, reg) = match module {
                     Module::Source(src, path, reg) => (src.into(), path, reg),
-                    Module::Binary(code, path, reg) => (code, path, reg)
+                    Module::Binary(code, path, reg) => (code, path, reg),
                 };
 
                 struct ImportData(Vec<u8>, CString);
