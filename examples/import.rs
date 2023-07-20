@@ -33,7 +33,7 @@ fn main() -> Result<()> {
         }));
 
     let vm = NewVM::new(conf);
-    let mut vm = vm.init_runtime();
+    let vm = vm.init_runtime();
 
     vm.eval_string(
         "<string>",

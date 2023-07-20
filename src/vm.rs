@@ -1,12 +1,12 @@
-use ffi::jsrValidateSlot;
-use ffi::jsrValidateStack;
-use ffi::JStarNativeReg;
+use ffi::jsrGetString;
+use ffi::jsrGetStringSz;
 
 use crate::conf::Conf;
 use crate::convert::FromJStar;
 use crate::error::Error;
 use crate::error::Result;
 use crate::ffi::{self, jsrEvalString, jsrFreeVM, JStarConf, JStarVM};
+use crate::string::String as JStarString;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
@@ -95,7 +95,7 @@ impl<'a> VM<'a> {
     /// a file, it is reccomended to pass its path to this function.
     ///
     /// * `src` - The J* source code
-    pub fn eval_string(&mut self, path: &str, src: &str) -> Result<()> {
+    pub fn eval_string(&self, path: &str, src: &str) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let src = CString::new(src).expect("Couldn't create CString");
         let res = unsafe { jsrEvalString(self.vm, path.as_ptr(), src.as_ptr()) };
@@ -126,7 +126,7 @@ impl<'a> VM<'a> {
     /// Push a `Number` onto the VM stack.
     /// This method panics if there isn't enough stack space for one element.
     /// Use [ensure_stack](#method.ensure_stack) if you are not sure the stack has enough space.
-    pub fn push_number(&mut self, number: f64) {
+    pub fn push_number(&self, number: f64) {
         assert!(self.validate_stack(), "VM stack overflow");
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrPushNumber(self.vm, number) };
@@ -139,7 +139,6 @@ impl<'a> VM<'a> {
     }
 
     pub fn get_number(&self, slot: Index) -> Option<f64> {
-        assert!(self.validate_slot(slot), "VM stack overflow");
         if !self.is_number(slot) {
             None
         } else {
@@ -148,7 +147,30 @@ impl<'a> VM<'a> {
         }
     }
 
-    pub fn get_top<'vm>(&'vm self) -> StackRef<'vm, 'a> {
+    pub fn push_string(&self, str: impl AsRef<[u8]>) {
+        let str = str.as_ref();
+        // SAFETY: `self.vm` is a valid J* vm pointer
+        unsafe { ffi::jsrPushStringSz(self.vm, str.as_ptr() as *const c_char, str.len()) }
+    }
+
+    pub fn is_string(&self, slot: Index) -> bool {
+        assert!(self.validate_slot(slot), "Invalid slot");
+        // SAFETY: `self.vm` is a valid J* vm pointer
+        unsafe { ffi::jsrIsString(self.vm, slot) }
+    }
+
+    pub fn get_string(&'a self, slot: Index) -> Option<JStarString> {
+        if !self.is_string(slot) {
+            None
+        } else {
+            // SAFETY: `slot` is a valide slot per check above, and its a `Number`
+            let data = unsafe { jsrGetString(self.vm, slot) };
+            let len = unsafe { jsrGetStringSz(self.vm, slot) };
+            Some(JStarString::new(data, len, self))
+        }
+    }
+
+    pub fn get_top(&self) -> StackRef {
         StackRef {
             // SAFETY: `self.vm` is a valid J* vm pointer
             index: unsafe { ffi::jsrTop(self.vm) },
@@ -167,14 +189,14 @@ impl<'a> VM<'a> {
     /// stack, false otherwise
     pub fn validate_slot(&self, slot: Index) -> bool {
         // SAFETY: `self.vm` is a valid J* vm pointer
-        unsafe { jsrValidateSlot(self.vm, slot) }
+        unsafe { ffi::jsrValidateSlot(self.vm, slot) }
     }
 
     /// Returns `true` if the stack has space for one element, i.e. pushing one element will not overflow
     /// the native stack
     pub fn validate_stack(&self) -> bool {
         // SAFETY: `self.vm` is a valid J* vm pointer
-        unsafe { jsrValidateStack(self.vm) }
+        unsafe { ffi::jsrValidateStack(self.vm) }
     }
 }
 
@@ -188,31 +210,31 @@ impl<'a> Drop for VM<'a> {
 
 pub type Index = c_int;
 
-pub struct StackRef<'a, 'b> {
+pub struct StackRef<'vm> {
     index: Index,
-    vm: &'a VM<'b>,
+    vm: &'vm VM<'vm>,
 }
 
-impl<'a, 'b> StackRef<'a, 'b> {
+impl<'vm> StackRef<'vm> {
     pub fn get<T>(&self) -> Option<T>
     where
-        T: FromJStar,
+        T: FromJStar<'vm>,
     {
         T::from_jstar(self.vm, self.index)
     }
 }
 
 pub enum Module {
-    Source(CString, CString, *mut JStarNativeReg),
-    Binary(Vec<u8>, CString, *mut JStarNativeReg),
+    Source(CString, CString, *mut ffi::JStarNativeReg),
+    Binary(Vec<u8>, CString, *mut ffi::JStarNativeReg),
 }
 
 impl Module {
     pub fn source(src: String, path: String) -> Self {
-        Self::source_with_reg(src, path, std::ptr::null_mut() as *mut JStarNativeReg)
+        Self::source_with_reg(src, path, std::ptr::null_mut() as *mut ffi::JStarNativeReg)
     }
 
-    pub fn source_with_reg(src: String, path: String, reg: *mut JStarNativeReg) -> Self {
+    pub fn source_with_reg(src: String, path: String, reg: *mut ffi::JStarNativeReg) -> Self {
         Module::Source(
             CString::new(src).expect("Couldn't create a c compatible string from `src`"),
             CString::new(path).expect("Couldn't create a c compatible string from `path`"),
@@ -221,10 +243,10 @@ impl Module {
     }
 
     pub fn binary(code: Vec<u8>, path: String) -> Self {
-        Self::binary_with_reg(code, path, std::ptr::null_mut() as *mut JStarNativeReg)
+        Self::binary_with_reg(code, path, std::ptr::null_mut() as *mut ffi::JStarNativeReg)
     }
 
-    pub fn binary_with_reg(code: Vec<u8>, path: String, reg: *mut JStarNativeReg) -> Self {
+    pub fn binary_with_reg(code: Vec<u8>, path: String, reg: *mut ffi::JStarNativeReg) -> Self {
         let path = CString::new(path).expect("Couldn't create a c compatible string from `path`");
         Module::Binary(code, path, reg)
     }
