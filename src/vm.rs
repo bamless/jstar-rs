@@ -132,6 +132,7 @@ impl<'a> VM<'a> {
         unsafe { ffi::jsrPushNumber(self.vm, number) };
     }
 
+    /// Returns wether or not the value at `slot` is a `Number`.
     pub fn is_number(&self, slot: Index) -> bool {
         assert!(self.validate_slot(slot), "VM stack overflow");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -166,7 +167,7 @@ impl<'a> VM<'a> {
             // SAFETY: `slot` is a valide slot per check above, and its a `Number`
             let data = unsafe { jsrGetString(self.vm, slot) };
             let len = unsafe { jsrGetStringSz(self.vm, slot) };
-            Some(JStarString::new(data, len, self))
+            Some(JStarString::new(data, len))
         }
     }
 

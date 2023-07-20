@@ -1,6 +1,9 @@
 use crate::{vm::{Index, VM}, string::String};
 
+/// Trait used to push a value onto the J* stack.
+/// Types that implement this trait usually have a corresponding `push_...` method in the [VM].
 pub trait ToJStar {
+    /// Pushes the value onto the J* stack
     fn to_jstar(&self, vm: &VM);
 }
 
@@ -28,7 +31,11 @@ impl<'vm> ToJStar for String<'vm> {
     }
 }
 
+/// Trait used to get a value from the J* stack.
+/// Types that implement this trait usually have corresponding `get_...` and `is_...` methods in the [VM]
 pub trait FromJStar<'vm>: Sized {
+    /// Get the value from the J* stack at `slot`.
+    /// If the value at `slot` is not of type `Self` this method returns `None`.
     fn from_jstar(vm: &'vm VM, slot: Index) -> Option<Self>;
 }
 
