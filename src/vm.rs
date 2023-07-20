@@ -160,7 +160,7 @@ impl<'a> VM<'a> {
         unsafe { ffi::jsrIsString(self.vm, slot) }
     }
 
-    pub fn get_string(&'a self, slot: Index) -> Option<JStarString> {
+    pub fn get_string(&self, slot: Index) -> Option<JStarString> {
         if !self.is_string(slot) {
             None
         } else {
