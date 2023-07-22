@@ -1,8 +1,8 @@
 use jstar::{
-    self,
     conf::Conf,
     error::Result,
-    vm::{ImportResult, Module, NewVM},
+    import::{ImportResult, Module},
+    vm::NewVM,
 };
 
 fn main() -> Result<()> {
@@ -23,12 +23,12 @@ fn main() -> Result<()> {
                 end
                 ";
 
-                ImportResult::Success(Module::source(
+                ImportResult::Ok(Module::source(
                     code.to_owned(),
                     "hello_world.jsr".to_owned(),
                 ))
             } else {
-                ImportResult::Error
+                ImportResult::Err(())
             }
         }));
 
@@ -43,10 +43,7 @@ fn main() -> Result<()> {
 
     println!();
 
-    vm.eval_string(
-        "<string>",
-        "import does_not_exist"
-    )?;
+    vm.eval_string("<string>", "import does_not_exist")?;
 
     Ok(())
 }

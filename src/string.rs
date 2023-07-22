@@ -1,7 +1,6 @@
+use crate::vm::VM;
 use std::hash::Hash;
 use std::{ffi::c_char, marker::PhantomData};
-
-use crate::vm::VM;
 
 /// `String` represents a J* string.
 /// In J* `String`s are basically [\[u8\]] as they can store arbitrary data and their encoding is not
@@ -10,7 +9,7 @@ use crate::vm::VM;
 pub struct String<'vm> {
     data: *const c_char,
     len: usize,
-    phantom: PhantomData<&'vm VM<'vm>>
+    phantom: PhantomData<&'vm VM<'vm>>,
 }
 
 impl<'vm> String<'vm> {

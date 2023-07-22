@@ -1,5 +1,7 @@
-use crate::ffi;
-use crate::vm::{ErrorCallback, ImportCallback};
+use crate::{error::Error, ffi, import::ImportResult, vm::VM};
+
+pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>;
+pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> ImportResult + 'a>;
 
 #[derive(Default)]
 pub struct Conf<'a> {

@@ -1,5 +1,4 @@
 use crate::ffi;
-use std::result::Result as StdResult;
 use thiserror::Error;
 
 // TODO: rework this error struct.
@@ -21,7 +20,7 @@ pub enum Error {
 
 impl TryFrom<ffi::JStarResult> for Error {
     type Error = ();
-    fn try_from(value: ffi::JStarResult) -> StdResult<Self, Self::Error> {
+    fn try_from(value: ffi::JStarResult) -> std::result::Result<Self, Self::Error> {
         match value {
             ffi::JStarResult::SyntaxErr => Ok(Self::Syntax),
             ffi::JStarResult::CompileErr => Ok(Self::Compile),
@@ -33,4 +32,4 @@ impl TryFrom<ffi::JStarResult> for Error {
     }
 }
 
-pub type Result<T> = StdResult<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;

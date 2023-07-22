@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 
     let n = 40.0f32;
     n.to_jstar(&vm);
-    println!("f32: {}", f64::from_jstar(&vm, -1).unwrap());
+    // println!("f32: {}", f32::from_jstar(&vm, -1).unwrap());
     vm.pop();
 
     let n = 50i32;

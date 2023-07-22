@@ -1,25 +1,36 @@
-use ffi::jsrGetString;
-use ffi::jsrGetStringSz;
-
 use crate::conf::Conf;
+use crate::conf::ErrorCallback;
+use crate::conf::ImportCallback;
 use crate::convert::FromJStar;
 use crate::error::Error;
 use crate::error::Result;
-use crate::ffi::{self, jsrEvalString, jsrFreeVM, JStarConf, JStarVM};
+use crate::ffi;
+use crate::import::ImportResult;
+use crate::import::Module;
 use crate::string::String as JStarString;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
 
-pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>;
-pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> ImportResult + 'a>;
+/// Type representing an offset into the J* stack.
+/// If positive it represents a position from the start of the stack, if negative from its end.
+pub type Index = c_int;
 
+/// A newly allocated J* vm.
+/// This vm doesn't yet have an initialized runtime, so it can only perform operations that don't
+/// require one, such as compiling J* code or allocating vm-managed buffers.
+/// To obtain a fully initialized vm that can execute code call the [ensure_stack](#method.init_runtime)
+/// method.
+/// Keep in mind that initializing the runtime *will* execute J* code and allocate memory and as
+/// such it's a (relatively) slow process. Only call the initialization when needed and outside
+/// performance critical sections.
 pub struct NewVM<'a> {
     vm: *mut ffi::JStarVM,
     ownership: VMOwnership<'a>,
 }
 
 impl<'a> NewVM<'a> {
+    /// Constructs a new J* vm configured with the settings specified in [Conf].
     pub fn new(conf: Conf<'a>) -> Self {
         let mut trampolines = Box::new(Trampolines {
             error_callback: conf.error_callback,
@@ -35,7 +46,7 @@ impl<'a> NewVM<'a> {
             custom_data: (&mut *trampolines as *mut _) as *mut c_void,
         };
 
-        let vm = unsafe { ffi::jsrNewVM(&conf as *const JStarConf) };
+        let vm = unsafe { ffi::jsrNewVM(&conf as *const ffi::JStarConf) };
         assert!(!vm.is_null());
 
         NewVM {
@@ -44,7 +55,10 @@ impl<'a> NewVM<'a> {
         }
     }
 
+    /// Initializes the J* runtime.
+    /// After calliing this method the returned [VM] will be capable of executing J* code.
     pub fn init_runtime(mut self) -> VM<'a> {
+        // SAFETY: `self.vm` is a valid pointer
         unsafe { ffi::jsrInitRuntime(self.vm) };
         VM {
             vm: self.vm,
@@ -56,19 +70,21 @@ impl<'a> NewVM<'a> {
 impl<'a> Drop for NewVM<'a> {
     fn drop(&mut self) {
         if let VMOwnership::Owned(_) = self.ownership {
-            unsafe { jsrFreeVM(self.vm) };
+            unsafe { ffi::jsrFreeVM(self.vm) };
         }
     }
 }
 
+/// A fully initialized J* vm.
+/// Capable of executing J* code, as well as performing any operations a [NewVM] can.
 #[non_exhaustive]
 pub struct VM<'a> {
-    vm: *mut JStarVM,
+    vm: *mut ffi::JStarVM,
     ownership: VMOwnership<'a>,
 }
 
 impl<'a> VM<'a> {
-    /// Construct a new [VM] wrapper starting from a raw [JStarVM] pointer.
+    /// Construct a new [VM] wrapper starting from a raw [ffi::JStarVM] pointer.
     /// Its main use is to construct a `VM` wrapper struct across ffi boundaries when only a
     /// `JStarVM` pointer is available (for example, in J* native functions).
     ///
@@ -76,8 +92,8 @@ impl<'a> VM<'a> {
     ///
     /// The caller must ensure that this wrapper lives only as long as the main `VM` wrapper does.
     /// This is to ensure that the pointer to the underlying `JStarVM` and its user-defined
-    /// callbacks ([Trampolines] struct) remain valid, since they will be dropped when the original
-    /// `VM` wrapper lifetime ends.
+    /// callbacks remain valid, since they will be dropped when the original `VM` wrapper lifetime
+    /// ends.
     pub unsafe fn from_ptr(vm: *mut ffi::JStarVM) -> Self {
         VM {
             vm,
@@ -98,7 +114,7 @@ impl<'a> VM<'a> {
     pub fn eval_string(&self, path: &str, src: &str) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let src = CString::new(src).expect("Couldn't create CString");
-        let res = unsafe { jsrEvalString(self.vm, path.as_ptr(), src.as_ptr()) };
+        let res = unsafe { ffi::jsrEvalString(self.vm, path.as_ptr(), src.as_ptr()) };
         if let Ok(err) = res.try_into() {
             Err(err)
         } else {
@@ -139,6 +155,8 @@ impl<'a> VM<'a> {
         unsafe { ffi::jsrIsNumber(self.vm, slot) }
     }
 
+    /// Gets a J* `Number` from the stack.
+    /// If the value at `slot` is not a `Number`, returns `None`.
     pub fn get_number(&self, slot: Index) -> Option<f64> {
         if !self.is_number(slot) {
             None
@@ -148,29 +166,38 @@ impl<'a> VM<'a> {
         }
     }
 
+    /// Push a `String` onto the VM stack.
+    /// Since a J* string can contain arbitrary bytes, this method accepts anything that can be
+    /// trated as a byte slice.
+    /// This method panics if there isn't enough stack space for one element.
+    /// Use [ensure_stack](#method.ensure_stack) if you are not sure the stack has enough space.
     pub fn push_string(&self, str: impl AsRef<[u8]>) {
         let str = str.as_ref();
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrPushStringSz(self.vm, str.as_ptr() as *const c_char, str.len()) }
     }
 
+    /// Returns wether or not the value at `slot` is a `String`.
     pub fn is_string(&self, slot: Index) -> bool {
         assert!(self.validate_slot(slot), "Invalid slot");
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrIsString(self.vm, slot) }
     }
 
+    /// Gets a J* `String` from the stack.
+    /// If the value at `slot` is not a `String`, returns `None`.
     pub fn get_string(&self, slot: Index) -> Option<JStarString> {
         if !self.is_string(slot) {
             None
         } else {
-            // SAFETY: `slot` is a valide slot per check above, and its a `Number`
-            let data = unsafe { jsrGetString(self.vm, slot) };
-            let len = unsafe { jsrGetStringSz(self.vm, slot) };
+            // SAFETY: `slot` is a valid slot per check above, and its a `Number`
+            let data = unsafe { ffi::jsrGetString(self.vm, slot) };
+            let len = unsafe { ffi::jsrGetStringSz(self.vm, slot) };
             Some(JStarString::new(data, len))
         }
     }
 
+    /// Returns a [StackRef] pointing to the topmost stack slot.
     pub fn get_top(&self) -> StackRef {
         StackRef {
             // SAFETY: `self.vm` is a valid J* vm pointer
@@ -204,19 +231,21 @@ impl<'a> VM<'a> {
 impl<'a> Drop for VM<'a> {
     fn drop(&mut self) {
         if let VMOwnership::Owned(_) = self.ownership {
-            unsafe { jsrFreeVM(self.vm) };
+            unsafe { ffi::jsrFreeVM(self.vm) };
         }
     }
 }
 
-pub type Index = c_int;
-
+/// A 'reference' to a slot in the J* stack.
 pub struct StackRef<'vm> {
     index: Index,
     vm: &'vm VM<'vm>,
 }
 
 impl<'vm> StackRef<'vm> {
+    /// Get the J* value in the stack slot pointed to by this reference.
+    /// If the value at the slot cannot be converted to a `T` (usually because it has the wrong J*
+    /// type) returns `None`.
     pub fn get<T>(&self) -> Option<T>
     where
         T: FromJStar<'vm>,
@@ -225,47 +254,25 @@ impl<'vm> StackRef<'vm> {
     }
 }
 
-pub enum Module {
-    Source(CString, CString, *mut ffi::JStarNativeReg),
-    Binary(Vec<u8>, CString, *mut ffi::JStarNativeReg),
-}
-
-impl Module {
-    pub fn source(src: String, path: String) -> Self {
-        Self::source_with_reg(src, path, std::ptr::null_mut() as *mut ffi::JStarNativeReg)
-    }
-
-    pub fn source_with_reg(src: String, path: String, reg: *mut ffi::JStarNativeReg) -> Self {
-        Module::Source(
-            CString::new(src).expect("Couldn't create a c compatible string from `src`"),
-            CString::new(path).expect("Couldn't create a c compatible string from `path`"),
-            reg,
-        )
-    }
-
-    pub fn binary(code: Vec<u8>, path: String) -> Self {
-        Self::binary_with_reg(code, path, std::ptr::null_mut() as *mut ffi::JStarNativeReg)
-    }
-
-    pub fn binary_with_reg(code: Vec<u8>, path: String, reg: *mut ffi::JStarNativeReg) -> Self {
-        let path = CString::new(path).expect("Couldn't create a c compatible string from `path`");
-        Module::Binary(code, path, reg)
-    }
-}
-
-pub enum ImportResult {
-    Success(Module),
-    Error,
-}
-
-struct Trampolines<'a> {
-    error_callback: Option<ErrorCallback<'a>>,
-    import_callback: Option<ImportCallback<'a>>,
-}
-
+/// Enum that serves the purpose of tracking the ownership of a pointer to an [ffi::JStarVM].
+/// Since we need the ability to construct a new rust wrapper around a `*mut JStarVM` when it is
+/// needed (for example in callbakcs, where only a pointer to the vm is available), we need to
+/// keep track which of the `VM` wrappers is the owner of the pointer (and thus is responsible for
+/// its deallocation) and which is only a temporary wrapper (a sort of 'borrow').
+/// This enum accomplishes this need, and it also mantains all of the owned state needed for the VM
+/// to work.
 enum VMOwnership<'a> {
     Owned(Box<Trampolines<'a>>),
     NonOwned,
+}
+
+/// Struct that owns the import and error callbacks called by J* during error handling or import
+/// resolution.
+/// In conjunction with [error_trampoline] and [import_trampoline] it enables the execution of these
+/// functions across an ffi boundary, lifting the requirement of having to declare them as `extern "C"`
+struct Trampolines<'a> {
+    error_callback: Option<ErrorCallback<'a>>,
+    import_callback: Option<ImportCallback<'a>>,
 }
 
 extern "C" fn error_trampoline(
@@ -318,8 +325,8 @@ extern "C" fn import_trampoline(
             .expect("module_name is not valid utf8");
 
         match import_callback(&mut vm, module_name) {
-            ImportResult::Error => ffi::JStarImportResult::default(),
-            ImportResult::Success(module) => {
+            ImportResult::Err(_) => ffi::JStarImportResult::default(),
+            ImportResult::Ok(module) => {
                 let (code, path, reg) = match module {
                     Module::Source(src, path, reg) => (src.into(), path, reg),
                     Module::Binary(code, path, reg) => (code, path, reg),
