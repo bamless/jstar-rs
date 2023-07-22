@@ -254,6 +254,9 @@ impl<'vm> StackRef<'vm> {
     }
 }
 
+unsafe impl<'a> Send for NewVM<'a> {}
+unsafe impl<'a> Send for VM<'a> {}
+
 /// Enum that serves the purpose of tracking the ownership of a pointer to an [ffi::JStarVM].
 /// Since we need the ability to construct a new rust wrapper around a `*mut JStarVM` when it is
 /// needed (for example in callbakcs, where only a pointer to the vm is available), we need to
