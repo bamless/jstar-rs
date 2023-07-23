@@ -1,10 +1,4 @@
-use jstar::{
-    self,
-    conf::Conf,
-    convert::ToJStar,
-    error::Result,
-    vm::NewVM, string::String,
-};
+use jstar::{self, conf::Conf, convert::ToJStar, error::Result, string::String, vm::NewVM};
 
 fn main() -> Result<()> {
     let vm = NewVM::new(Conf::new());
@@ -14,7 +8,7 @@ fn main() -> Result<()> {
     let r1 = vm.get_top();
 
     "string".to_jstar(&vm);
-    let r2= vm.get_top();
+    let r2 = vm.get_top();
 
     let v1: f64 = r1.get().unwrap();
     let v2: String = r2.get().unwrap();
