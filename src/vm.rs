@@ -179,7 +179,7 @@ impl<'a> VM<'a> {
 
     /// Returns wether or not the value at `slot` is a `String`.
     pub fn is_string(&self, slot: Index) -> bool {
-        assert!(self.validate_slot(slot), "Invalid slot");
+        assert!(self.validate_slot(slot), "`slot` out of bounds");
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrIsString(self.vm, slot) }
     }
@@ -202,6 +202,20 @@ impl<'a> VM<'a> {
         StackRef {
             // SAFETY: `self.vm` is a valid J* vm pointer
             index: unsafe { ffi::jsrTop(self.vm) },
+            vm: self,
+        }
+    }
+
+    /// Returns a [StackRef] pointing to the stack slot at `slot`.
+    /// `slot` is treated as an offset from the top of the stack and must be positive.
+    /// This method panics if `slot` is out of bounds.
+    pub fn peek_top(&self, slot: Index) -> StackRef {
+        assert!(slot > 0, "`slot` must be positive");
+        // SAFETY: `self.vm` is a valid J* vm pointer
+        let idx = unsafe { ffi::jsrTop(self.vm) } - slot;
+        assert!(self.validate_slot(idx), "`slot` out of bounds");
+        StackRef {
+            index: idx,
             vm: self,
         }
     }
