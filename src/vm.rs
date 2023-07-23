@@ -77,7 +77,6 @@ impl<'a> Drop for NewVM<'a> {
 
 /// A fully initialized J* vm.
 /// Capable of executing J* code, as well as performing any operations a [NewVM] can.
-#[non_exhaustive]
 pub struct VM<'a> {
     vm: *mut ffi::JStarVM,
     ownership: VMOwnership<'a>,
