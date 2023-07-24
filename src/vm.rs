@@ -2,7 +2,6 @@ use crate::conf::Conf;
 use crate::conf::ErrorCallback;
 use crate::conf::ImportCallback;
 use crate::convert::FromJStar;
-use crate::error::CompilationError;
 use crate::error::Error;
 use crate::error::Result;
 use crate::ffi;
@@ -250,12 +249,7 @@ impl<'a> VM<'a, Init> {
 }
 
 impl<'a, State> VM<'a, State> {
-    pub fn compile(
-        &self,
-        path: &str,
-        src: &str,
-        mut out: impl Write,
-    ) -> std::result::Result<(), CompilationError> {
+    pub fn compile(&self, path: &str, src: &str, mut out: impl Write) -> Result<()> {
         let path = CString::new(path).expect("`path` to not contain NUL characters");
         let src = CString::new(src).expect("`src` to not contain NUL characters");
         let mut buf = ffi::JStarBuffer::default();
@@ -270,8 +264,8 @@ impl<'a, State> VM<'a, State> {
             )
         };
 
-        if let Ok(err) = Error::try_from(res) {
-            return Err(err.into());
+        if let Ok(err) = res.try_into() {
+            return Err(err);
         }
 
         // SAFETY: we are guaranteed by the J* API that `buf.data` is a valid pointer (check above)
@@ -288,11 +282,7 @@ impl<'a, State> VM<'a, State> {
         }
     }
 
-    pub fn compile_in_memory(
-        &self,
-        path: &str,
-        src: &str,
-    ) -> std::result::Result<Vec<u8>, CompilationError> {
+    pub fn compile_in_memory(&self, path: &str, src: &str) -> Result<Vec<u8>> {
         let mut out = Vec::new();
         self.compile(path, src, &mut out)?;
         Ok(out)
@@ -342,7 +332,7 @@ struct Trampolines<'a> {
 
 extern "C" fn error_trampoline(
     vm: *mut ffi::JStarVM,
-    err: ffi::JStarResult,
+    res: ffi::JStarResult,
     file: *const c_char,
     line: c_int,
     error: *const c_char,
@@ -355,7 +345,7 @@ extern "C" fn error_trampoline(
     let trampolines = unsafe { &mut *(ffi::jsrGetCustomData(vm) as *mut Trampolines) };
 
     if let Some(ref mut error_callback) = trampolines.error_callback {
-        let err = Error::try_from(err).expect("err shouldn't be JStarResult::Success");
+        let err = Error::try_from(res).expect("err shouldn't be JStarResult::Success");
         let line = if line > 0 { Some(line) } else { None };
 
         // SAFETY: `file` comes from the J* API that guarantess that is a valid cstring and utf8
@@ -393,8 +383,8 @@ extern "C" fn import_trampoline(
             ImportResult::Err(_) => ffi::JStarImportResult::default(),
             ImportResult::Ok(module) => {
                 let (code, path, reg) = match module {
-                    Module::Source(src, path, reg) => (src.into(), path, reg),
-                    Module::Binary(code, path, reg) => (code, path, reg),
+                    Module::Source { src, path, reg } => (src.into(), path, reg),
+                    Module::Binary { code, path, reg } => (code, path, reg),
                 };
 
                 struct ImportData(Vec<u8>, CString);

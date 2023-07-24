@@ -17,6 +17,8 @@ pub enum Error {
     Deserialize,
     #[error("Compiled code version mismatch")]
     Version,
+    #[error("I/O error: {0}")]
+    IO(#[from] std::io::Error)
 }
 
 impl TryFrom<ffi::JStarResult> for Error {
@@ -31,12 +33,4 @@ impl TryFrom<ffi::JStarResult> for Error {
             ffi::JStarResult::Success => Err(()),
         }
     }
-}
-
-#[derive(Error, Debug)]
-pub enum CompilationError {
-    #[error(transparent)]
-    Compile(#[from] Error),
-    #[error("I/O error during compilation: {0}")]
-    IO(#[from] std::io::Error)
 }

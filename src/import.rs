@@ -1,5 +1,5 @@
 use crate::ffi;
-use std::{ffi::CString, error::Error};
+use std::{error::Error, ffi::CString};
 use thiserror::Error;
 
 /// Type representing the result of a module import.
@@ -13,9 +13,17 @@ pub struct NotFound;
 /// Represents an imported J* module.
 pub enum Module {
     /// A source J* module
-    Source(CString, CString, *mut ffi::JStarNativeReg),
+    Source {
+        src: CString,
+        path: CString,
+        reg: *mut ffi::JStarNativeReg,
+    },
     /// A binary J* module (bytecode)
-    Binary(Vec<u8>, CString, *mut ffi::JStarNativeReg),
+    Binary {
+        code: Vec<u8>,
+        path: CString,
+        reg: *mut ffi::JStarNativeReg,
+    },
 }
 
 impl Module {
@@ -26,11 +34,11 @@ impl Module {
 
     /// Same as [source](#method.source) but with a native registry.
     pub fn source_with_reg(src: String, path: String, reg: *mut ffi::JStarNativeReg) -> Self {
-        Module::Source(
-            CString::new(src).expect("Couldn't create a c compatible string from `src`"),
-            CString::new(path).expect("Couldn't create a c compatible string from `path`"),
+        Module::Source {
+            src: CString::new(src).expect("Couldn't create a c compatible string from `src`"),
+            path: CString::new(path).expect("Couldn't create a c compatible string from `path`"),
             reg,
-        )
+        }
     }
 
     /// Construct a new module with J* bytecode.
@@ -41,6 +49,6 @@ impl Module {
     /// Same as [source](#method.binary) but with a native registry.
     pub fn binary_with_reg(code: Vec<u8>, path: String, reg: *mut ffi::JStarNativeReg) -> Self {
         let path = CString::new(path).expect("Couldn't create a c compatible string from `path`");
-        Module::Binary(code, path, reg)
+        Module::Binary { code, path, reg }
     }
 }
