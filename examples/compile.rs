@@ -10,12 +10,12 @@ fn main() -> Result<()> {
             }
             eprintln!("{msg}");
         }))
-        .import_callback(Box::new(|vm, path| {
-            if path == "binary" {
+        .import_callback(Box::new(|vm, module_name| {
+            if module_name == "binary" {
                 let code = vm
                     .compile_in_memory("<bin>", "print('Compiled code!')")
                     .ok()?;
-                Some(Module::binary(code, path.to_owned()))
+                Some(Module::binary(code, "<bin>".to_owned()))
             } else {
                 None
             }
