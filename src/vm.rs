@@ -270,12 +270,12 @@ impl<'a, State> VM<'a, State> {
         // SAFETY: we are guaranteed by the J* API that `buf.data` is a valid pointer (check above)
         // and that its size is at least of `buf.size` bytes
         let slice = unsafe { from_raw_parts(buf.data as *const u8, buf.size) };
-        let res = out.write_all(slice);
+        let write_res = out.write_all(slice);
 
         // SAFETY: we are guaranteed that `buf` is a valid and initialized J* buffer (check above)
         unsafe { ffi::jsrBufferFree(&mut buf as *mut ffi::JStarBuffer) };
 
-        match res {
+        match write_res {
             Ok(_) => Ok(()),
             Err(e) => Err(e.into()),
         }
