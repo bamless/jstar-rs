@@ -1,8 +1,14 @@
 use crate::ffi;
-use std::ffi::CString;
+use std::{ffi::CString, error::Error};
+use thiserror::Error;
 
 /// Type representing the result of a module import.
-pub type ImportResult = std::result::Result<Module, ()>;
+pub type ImportResult = Result<Module, Box<dyn Error>>;
+
+/// Error signaling that a module couldn't be found during import resolution
+#[derive(Error, Debug)]
+#[error("Couldn't find module")]
+pub struct NotFound;
 
 /// Represents an imported J* module.
 pub enum Module {
