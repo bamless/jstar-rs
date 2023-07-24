@@ -27,7 +27,7 @@ pub type Index = c_int;
 pub struct Uninit;
 
 /// Marker struct that represents a fully initialized J* vm.
-/// Capable of executing J* code, as well as performing any operations an [Uninit] can.
+/// Capable of executing J* code, as well as performing any operations an [Uninit] vm can.
 pub struct Init;
 
 /// A J* virtual machine.
