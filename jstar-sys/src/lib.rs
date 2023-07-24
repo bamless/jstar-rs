@@ -230,4 +230,49 @@ pub struct JStarNativeReg {
 // CODE COMPILATION
 // -----------------------------------------------------------------------------
 
-// TODO
+extern "C" {
+    pub fn jsrCompileCode(
+        vm: *mut JStarVM,
+        path: *const c_char,
+        src: *const c_char,
+        out: *mut JStarBuffer,
+    ) -> JStarResult;
+
+    pub fn jsrDisassembleCode(
+        vm: *mut JStarVM,
+        path: *const c_char,
+        code: *const JStarBuffer,
+    ) -> JStarResult;
+}
+
+// omitted: jsrReadFile
+
+// -----------------------------------------------------------------------------
+// Buffer
+// -----------------------------------------------------------------------------
+
+#[repr(C)]
+pub struct JStarBuffer {
+    pub vm: *mut JStarVM,
+    pub capacity: usize,
+    pub size: usize,
+    pub data: *mut c_char,
+}
+
+impl Default for JStarBuffer {
+    fn default() -> Self {
+        JStarBuffer {
+            vm: std::ptr::null_mut(),
+            capacity: 0,
+            size: 0,
+            data: std::ptr::null_mut(),
+        }
+    }
+}
+
+extern "C" {
+    pub fn jsrBufferPush(b: *mut JStarBuffer);
+    pub fn jsrBufferFree(b: *mut JStarBuffer);
+}
+
+// omitted: JStarBuffer API

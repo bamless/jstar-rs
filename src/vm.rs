@@ -2,6 +2,7 @@ use crate::conf::Conf;
 use crate::conf::ErrorCallback;
 use crate::conf::ImportCallback;
 use crate::convert::FromJStar;
+use crate::error::CompilationError;
 use crate::error::Error;
 use crate::error::Result;
 use crate::ffi;
@@ -10,8 +11,10 @@ use crate::import::Module;
 use crate::string::String as JStarString;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::io::Write;
 use std::marker::PhantomData;
 use std::os::raw::{c_char, c_int, c_void};
+use std::slice::from_raw_parts;
 
 /// Type representing an offset into the J* stack.
 /// If positive it represents a position from the start of the stack, if negative from its end.
@@ -243,6 +246,56 @@ impl<'a> VM<'a, Init> {
     pub fn validate_stack(&self) -> bool {
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrValidateStack(self.vm) }
+    }
+}
+
+impl<'a, State> VM<'a, State> {
+    pub fn compile(
+        &self,
+        path: &str,
+        src: &str,
+        mut out: impl Write,
+    ) -> std::result::Result<(), CompilationError> {
+        let path = CString::new(path).expect("`path` to not contain NUL characters");
+        let src = CString::new(src).expect("`src` to not contain NUL characters");
+        let mut buf = ffi::JStarBuffer::default();
+
+        // SAFETY: `self.vm` is a valid pointer
+        let res = unsafe {
+            ffi::jsrCompileCode(
+                self.vm,
+                path.as_ptr(),
+                src.as_ptr(),
+                &mut buf as *mut ffi::JStarBuffer,
+            )
+        };
+
+        if let Ok(err) = Error::try_from(res) {
+            return Err(err.into());
+        }
+
+        // SAFETY: we are guaranteed by the J* API that `buf.data` is a valid pointer (check above)
+        // and that its size is at least of `buf.size` bytes
+        let slice = unsafe { from_raw_parts(buf.data as *const u8, buf.size) };
+        let res = out.write_all(slice);
+
+        // SAFETY: we are guaranteed that `buf` is a valid and initialized J* buffer (check above)
+        unsafe { ffi::jsrBufferFree(&mut buf as *mut ffi::JStarBuffer) };
+
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn compile_in_memory(
+        &self,
+        path: &str,
+        src: &str,
+    ) -> std::result::Result<Vec<u8>, CompilationError> {
+        let mut out = Vec::new();
+        self.compile(path, src, &mut out)?;
+        Ok(out)
     }
 }
 

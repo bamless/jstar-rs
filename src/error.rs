@@ -1,6 +1,9 @@
 use crate::ffi;
 use thiserror::Error;
 
+/// Alias for a result with an [Error]. Provided for ease of use.
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// Error represents a J* vm error.
 #[derive(Error, Debug)]
 pub enum Error {
@@ -30,5 +33,10 @@ impl TryFrom<ffi::JStarResult> for Error {
     }
 }
 
-/// Alias for a result with an [Error]. Provided for ease of use.
-pub type Result<T> = std::result::Result<T, Error>;
+#[derive(Error, Debug)]
+pub enum CompilationError {
+    #[error(transparent)]
+    Compile(#[from] Error),
+    #[error("I/O error during compilation: {0}")]
+    IO(#[from] std::io::Error)
+}
