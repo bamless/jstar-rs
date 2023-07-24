@@ -5,7 +5,6 @@ use crate::convert::FromJStar;
 use crate::error::Error;
 use crate::error::Result;
 use crate::ffi;
-use crate::import::ImportResult;
 use crate::import::Module;
 use crate::string::String as JStarString;
 use std::ffi::CStr;
@@ -380,8 +379,8 @@ extern "C" fn import_trampoline(
             .expect("module_name is not valid utf8");
 
         match import_callback(&mut vm, module_name) {
-            ImportResult::Err(_) => ffi::JStarImportResult::default(),
-            ImportResult::Ok(module) => {
+            None => ffi::JStarImportResult::default(),
+            Some(module) => {
                 let (code, path, reg) = match module {
                     Module::Source { src, path, reg } => (src.into(), path, reg),
                     Module::Binary { code, path, reg } => (code, path, reg),

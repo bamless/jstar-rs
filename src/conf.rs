@@ -1,4 +1,4 @@
-use crate::{error::Error, ffi, import::ImportResult, vm::VM};
+use crate::{error::Error, ffi, import::Module, vm::VM};
 
 /// Callback invoked by the J* vm when there is an error to report
 ///
@@ -20,8 +20,8 @@ pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>
 ///
 /// # Returns
 ///
-/// An [ImportResult] with the code of the resolved module if one can be found, `Err` otherwise.
-pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> ImportResult + 'a>;
+/// A `Some(Module)` if the module to import was found, `None` otherwise.
+pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
 
 /// Strutc containing a set of configurations for the J* vm.
 #[derive(Default)]

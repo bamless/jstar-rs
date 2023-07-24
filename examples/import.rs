@@ -1,4 +1,4 @@
-use jstar::{conf::Conf, import::{Module, NotFound}, vm::VM, error::Result};
+use jstar::{conf::Conf, import::Module, vm::VM, error::Result};
 
 fn main() -> Result<()> {
     let conf = Conf::new()
@@ -18,12 +18,12 @@ fn main() -> Result<()> {
                 end
                 ";
 
-                Ok(Module::source(
+                Some(Module::source(
                     code.to_owned(),
                     "hello_world.jsr".to_owned(),
                 ))
             } else {
-                Err(NotFound.into())
+                None
             }
         }));
 
