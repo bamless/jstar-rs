@@ -1,10 +1,9 @@
 use jstar::{
-    self, conf::Conf, convert::FromJStar, convert::ToJStar, error::Result, string::String,
-    vm::NewVM,
+    self, conf::Conf, convert::FromJStar, convert::ToJStar, error::Result, string::String, vm::VM,
 };
 
 fn main() -> Result<()> {
-    let vm = NewVM::new(Conf::new());
+    let vm = VM::new(Conf::new());
     let vm = vm.init_runtime();
 
     "string from rust".to_jstar(&vm);

@@ -10,26 +10,43 @@ use crate::import::Module;
 use crate::string::String as JStarString;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::marker::PhantomData;
 use std::os::raw::{c_char, c_int, c_void};
 
 /// Type representing an offset into the J* stack.
 /// If positive it represents a position from the start of the stack, if negative from its end.
 pub type Index = c_int;
 
-/// A newly allocated J* vm.
-/// This vm doesn't yet have an initialized runtime, so it can only perform operations that don't
-/// require one, such as compiling J* code or allocating vm-managed buffers.
-/// To obtain a fully initialized vm that can execute code call the [ensure_stack](#method.init_runtime)
-/// method.
+/// Marker struct that represents an uninitialized vm.
+/// An uninitialized vm doesn't have a language runtime yet, so it can only perform operations that
+/// don't require one, such as compiling J* code or allocating vm-managed buffers.
+/// To obtain a fully initialized vm that can execute code call the [init_runtime](struct.VM.html#method.init_runtime) method.
 /// Keep in mind that initializing the runtime *will* execute J* code and allocate memory and as
 /// such it's a (relatively) slow process. Only call the initialization when needed and outside
 /// performance critical sections.
-pub struct NewVM<'a> {
+pub struct Uninit;
+
+/// Marker struct that represents a fully initialized J* vm.
+/// Capable of executing J* code, as well as performing any operations an [Uninit] can.
+pub struct Init;
+
+/// A J* virtual machine.
+/// This is the main entry point of the J* API.
+pub struct VM<'a, State = Init> {
     vm: *mut ffi::JStarVM,
     ownership: VMOwnership<'a>,
+    state: PhantomData<State>,
 }
 
-impl<'a> NewVM<'a> {
+impl<'a, State> Drop for VM<'a, State> {
+    fn drop(&mut self) {
+        if let VMOwnership::Owned(_) = self.ownership {
+            unsafe { ffi::jsrFreeVM(self.vm) };
+        }
+    }
+}
+
+impl<'a> VM<'a, Uninit> {
     /// Constructs a new J* vm configured with the settings specified in [Conf].
     pub fn new(conf: Conf<'a>) -> Self {
         let mut trampolines = Box::new(Trampolines {
@@ -49,40 +66,27 @@ impl<'a> NewVM<'a> {
         let vm = unsafe { ffi::jsrNewVM(&conf as *const ffi::JStarConf) };
         assert!(!vm.is_null());
 
-        NewVM {
+        VM {
             vm,
             ownership: VMOwnership::Owned(trampolines),
+            state: PhantomData,
         }
     }
 
     /// Initializes the J* runtime.
     /// After calliing this method the returned [VM] will be capable of executing J* code.
-    pub fn init_runtime(mut self) -> VM<'a> {
+    pub fn init_runtime(mut self) -> VM<'a, Init> {
         // SAFETY: `self.vm` is a valid pointer
         unsafe { ffi::jsrInitRuntime(self.vm) };
         VM {
             vm: self.vm,
             ownership: std::mem::replace(&mut self.ownership, VMOwnership::NonOwned),
+            state: PhantomData,
         }
     }
 }
 
-impl<'a> Drop for NewVM<'a> {
-    fn drop(&mut self) {
-        if let VMOwnership::Owned(_) = self.ownership {
-            unsafe { ffi::jsrFreeVM(self.vm) };
-        }
-    }
-}
-
-/// A fully initialized J* vm.
-/// Capable of executing J* code, as well as performing any operations a [NewVM] can.
-pub struct VM<'a> {
-    vm: *mut ffi::JStarVM,
-    ownership: VMOwnership<'a>,
-}
-
-impl<'a> VM<'a> {
+impl<'a> VM<'a, Init> {
     /// Construct a new [VM] wrapper starting from a raw [ffi::JStarVM] pointer.
     /// Its main use is to construct a `VM` wrapper struct across ffi boundaries when only a
     /// `JStarVM` pointer is available (for example, in J* native functions).
@@ -97,6 +101,7 @@ impl<'a> VM<'a> {
         VM {
             vm,
             ownership: VMOwnership::NonOwned,
+            state: PhantomData,
         }
     }
 
@@ -241,14 +246,6 @@ impl<'a> VM<'a> {
     }
 }
 
-impl<'a> Drop for VM<'a> {
-    fn drop(&mut self) {
-        if let VMOwnership::Owned(_) = self.ownership {
-            unsafe { ffi::jsrFreeVM(self.vm) };
-        }
-    }
-}
-
 /// A 'reference' to a slot in the J* stack.
 pub struct StackRef<'vm> {
     index: Index,
@@ -267,8 +264,7 @@ impl<'vm> StackRef<'vm> {
     }
 }
 
-unsafe impl<'a> Send for NewVM<'a> {}
-unsafe impl<'a> Send for VM<'a> {}
+unsafe impl<'a, State> Send for VM<'a, State> {}
 
 /// Enum that serves the purpose of tracking the ownership of a pointer to an [ffi::JStarVM].
 /// Since we need the ability to construct a new rust wrapper around a `*mut JStarVM` when it is

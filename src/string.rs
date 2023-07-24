@@ -13,6 +13,7 @@ pub struct String<'vm> {
 }
 
 impl<'vm> String<'vm> {
+    /// Construct a new [String] starting from a pointer and a length to a J* `String`.
     pub(crate) fn new(data: *const c_char, len: usize) -> Self {
         String {
             data,

@@ -1,9 +1,7 @@
 use crate::ffi;
 use thiserror::Error;
 
-// TODO: rework this error struct.
-// Ideally the J* c library should return more information about the error so we can populate
-// the variants with relevant data.
+/// Error represents a J* vm error.
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Syntax error encountered while parsing")]
@@ -32,4 +30,5 @@ impl TryFrom<ffi::JStarResult> for Error {
     }
 }
 
+/// Alias for a result with an [Error]. Provided for ease of use.
 pub type Result<T> = std::result::Result<T, Error>;

@@ -3,11 +3,11 @@ use jstar::{
     conf::Conf,
     convert::{FromJStar, ToJStar},
     error::Result,
-    vm::NewVM,
+    vm::VM,
 };
 
 fn main() -> Result<()> {
-    let vm = NewVM::new(Conf::new());
+    let vm = VM::new(Conf::new());
     let mut vm = vm.init_runtime();
 
     let n = 30.0;

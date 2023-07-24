@@ -2,7 +2,7 @@ use jstar::{
     conf::Conf,
     error::Result,
     import::{ImportResult, Module},
-    vm::NewVM,
+    vm::VM,
 };
 
 fn main() -> Result<()> {
@@ -32,7 +32,7 @@ fn main() -> Result<()> {
             }
         }));
 
-    let vm = NewVM::new(conf);
+    let vm = VM::new(conf);
     let vm = vm.init_runtime();
 
     vm.eval_string(

@@ -1,7 +1,7 @@
-use jstar::{self, conf::Conf, convert::ToJStar, error::Result, string::String, vm::NewVM};
+use jstar::{self, conf::Conf, convert::ToJStar, error::Result, string::String, vm::VM};
 
 fn main() -> Result<()> {
-    let vm = NewVM::new(Conf::new());
+    let vm = VM::new(Conf::new());
     let vm = vm.init_runtime();
 
     42.to_jstar(&vm);
