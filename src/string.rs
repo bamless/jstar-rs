@@ -1,6 +1,6 @@
 use crate::vm::VM;
-use std::hash::Hash;
-use std::{ffi::c_char, marker::PhantomData};
+
+use std::{ffi::c_char, hash::Hash, marker::PhantomData};
 
 /// `String` represents a J* string.
 /// In J* `String`s are basically [\[u8\]] as they can store arbitrary data and their encoding is not

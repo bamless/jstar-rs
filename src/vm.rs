@@ -7,6 +7,7 @@ use crate::error::Result;
 use crate::ffi;
 use crate::import::Module;
 use crate::string::String as JStarString;
+
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::io::Write;
@@ -408,5 +409,117 @@ extern "C" fn import_trampoline(
         }
     } else {
         ffi::JStarImportResult::default()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn eval_string() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        vm.eval_string("<string>", "var test = 1 + 2").unwrap();
+    }
+
+    #[test]
+    fn error_callback() {
+        let mut num_errors = 0;
+        let conf = Conf::new().error_callback(Box::new(|_, _, _, _| {
+            num_errors += 1;
+        }));
+
+        let vm = VM::new(conf);
+        let vm = vm.init_runtime();
+
+        let err = vm.eval_string("<string>", "raise Exception()").unwrap_err();
+        assert!(matches!(err, Error::Runtime));
+
+        let err = vm.eval_string("<string>", "for end").unwrap_err();
+        assert!(matches!(err, Error::Syntax));
+
+        let err = vm
+            .eval_string("<string>", "begin var a; var a; end")
+            .unwrap_err();
+        assert!(matches!(err, Error::Compile));
+
+        vm.eval_string("<string>", "var bar = 1 + 2").unwrap();
+
+        drop(vm);
+
+        assert_eq!(num_errors, 3);
+    }
+
+    #[test]
+    fn import_source() {
+        let conf = Conf::new().import_callback(Box::new(|_, module_name| {
+            if module_name == "test" {
+                Some(Module::source(
+                    "var flag = 1".to_owned(),
+                    "<test>".to_owned(),
+                ))
+            } else {
+                None
+            }
+        }));
+
+        let vm = VM::new(conf);
+        let vm = vm.init_runtime();
+
+        vm.eval_string(
+            "<string>",
+            "import test
+            std.assert(test.flag == 1)",
+        )
+        .unwrap();
+
+        let err = vm
+            .eval_string("<string>", "import does_not_exist")
+            .unwrap_err();
+        assert!(matches!(err, Error::Runtime));
+    }
+
+    #[test]
+    fn import_binary() {
+        let mut err_called = false;
+
+        let conf = Conf::new()
+            .error_callback(Box::new(|err, path, line, msg| {
+                assert!(matches!(err, Error::Runtime));
+                assert_eq!(path, "<string>");
+                assert!(line.is_none());
+                assert_eq!(msg, "Traceback (most recent call last):\n    [line 1] module __main__ in <main>\nImportException: Cannot load module `does_not_exist`.");
+                err_called = true;
+            }))
+            .import_callback(Box::new(|vm, module_name| {
+            if module_name == "test" {
+                Some(Module::binary(
+                    vm.compile_in_memory("<test>", "var flag = 1").unwrap(),
+                    "<test>".to_owned(),
+                ))
+            } else {
+                None
+            }
+        }));
+
+        let vm = VM::new(conf);
+        let vm = vm.init_runtime();
+
+        vm.eval_string(
+            "<string>",
+            "import test
+            std.assert(test.flag == 1)",
+        )
+        .unwrap();
+
+        let err = vm
+            .eval_string("<string>", "import does_not_exist")
+            .unwrap_err();
+        assert!(matches!(err, Error::Runtime));
+
+        drop(vm);
+
+        assert!(err_called);
     }
 }

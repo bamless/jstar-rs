@@ -1,4 +1,5 @@
 use crate::ffi;
+
 use std::{error::Error, ffi::CString};
 use thiserror::Error;
 

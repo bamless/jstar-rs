@@ -1,4 +1,5 @@
 use crate::ffi;
+
 use thiserror::Error;
 
 /// Alias for a result with an [Error]. Provided for ease of use.
