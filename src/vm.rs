@@ -618,4 +618,19 @@ mod test {
         vm.push_number(5.0);
         vm.pop_n(5);
     }
+
+    #[test]
+    fn validate_slot_success() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        vm.push_number(5.0);
+        assert!(vm.validate_slot(-1));
+    }
+
+    #[test]
+    fn validate_slot_fail() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        assert!(!vm.validate_slot(-1));
+    }
 }
