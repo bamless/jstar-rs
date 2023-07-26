@@ -128,6 +128,24 @@ impl<'a> VM<'a, Init> {
         }
     }
 
+    pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
+        let path = CString::new(path).expect("Couldn't create CString");
+        let code = code.as_ref();
+        let buf = ffi::JStarBuffer {
+            vm: self.vm,
+            capacity: code.len(),
+            size: code.len(),
+            data: code.as_ptr() as *mut c_char,
+        };
+
+        let res = unsafe { ffi::jsrEval(self.vm, path.as_ptr(), &buf as *const ffi::JStarBuffer) };
+        if let Ok(err) = res.try_into() {
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Pops one element from the VM stack.
     /// This method panics if we try to pop more items than the stack holds.
     pub fn pop(&mut self) {
@@ -420,7 +438,19 @@ mod test {
     fn eval_string() {
         let vm = VM::new(Conf::new());
         let mut vm = vm.init_runtime();
-        vm.eval_string("<string>", "var test = 1 + 2").unwrap();
+        vm.eval_string("<string>", "print('Hello, World!')")
+            .unwrap();
+    }
+
+    #[test]
+    fn eval() {
+        let vm = VM::new(Conf::new());
+        let code = vm
+            .compile_in_memory("<string>", "print('Hello, World!')")
+            .unwrap();
+
+        let mut vm = vm.init_runtime();
+        vm.eval("<string>", code).unwrap();
     }
 
     #[test]

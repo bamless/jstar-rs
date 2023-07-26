@@ -95,12 +95,19 @@ extern "C" {
 
 extern "C" {
     pub fn jsrEvalString(vm: *mut JStarVM, path: *const c_char, src: *const c_char) -> JStarResult;
-    pub fn jsrEvalStringModule(
+    pub fn jsrEvalModuleString(
         vm: *mut JStarVM,
         path: *const c_char,
         module: *const c_char,
         src: *const c_char,
     );
+    pub fn jsrEval(vm: *mut JStarVM, path: *const c_char, code: *const JStarBuffer) -> JStarResult;
+    pub fn jsrEvalModule(
+        vm: *mut JStarVM,
+        path: *const c_char,
+        module: *const c_char,
+        code: *const JStarBuffer,
+    ) -> JStarResult;
     pub fn jsrCall(vm: *mut JStarVM, argc: u8) -> JStarResult;
     pub fn jsrCallMethod(vm: *mut JStarVM, name: *const c_char, argc: u8);
 }
