@@ -522,4 +522,100 @@ mod test {
 
         assert!(err_called);
     }
+
+    #[test]
+    fn push_get_number() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        vm.push_number(46.0);
+        let n = vm.get_number(-1).unwrap();
+        assert_eq!(46.0, n);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_number_panic() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        let _ = vm.get_number(-1);
+    }
+
+    #[test]
+    fn get_number_none() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        vm.push_string("notanumber");
+        let n = vm.get_number(-1);
+        assert!(n.is_none());
+    }
+
+    #[test]
+    fn push_get_string() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        vm.push_string("test");
+        let s = vm.get_string(-1).unwrap();
+        assert_eq!(s, "test");
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_string_panic() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        let _ = vm.get_string(-1).unwrap();
+    }
+
+    #[test]
+    fn get_string_none() {
+        let vm = VM::new(Conf::new());
+        let vm = vm.init_runtime();
+        vm.push_number(2.0);
+        let s = vm.get_string(-1);
+        assert!(s.is_none());
+    }
+
+    #[test]
+    fn pop() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+        vm.push_number(2.0);
+        vm.push_string("test");
+        vm.pop();
+        let s = vm.get_number(-1).unwrap();
+        assert_eq!(s, 2.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn pop_panic() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+        vm.pop();
+    }
+
+    #[test]
+    fn pop_n() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+        vm.push_number(2.0);
+        vm.push_number(3.0);
+        vm.push_number(4.0);
+        vm.push_number(5.0);
+        vm.pop_n(3);
+        let n = vm.get_number(-1).unwrap();
+        assert_eq!(n, 2.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn pop_n_panic() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+        vm.push_number(2.0);
+        vm.push_number(3.0);
+        vm.push_number(4.0);
+        vm.push_number(5.0);
+        vm.pop_n(5);
+    }
 }
