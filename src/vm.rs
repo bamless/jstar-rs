@@ -117,7 +117,7 @@ impl<'a> VM<'a, Init> {
     /// a file, it is reccomended to pass its path to this function.
     ///
     /// * `src` - The J* source code
-    pub fn eval_string(&self, path: &str, src: &str) -> Result<()> {
+    pub fn eval_string(&mut self, path: &str, src: &str) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let src = CString::new(src).expect("Couldn't create CString");
         let res = unsafe { ffi::jsrEvalString(self.vm, path.as_ptr(), src.as_ptr()) };
@@ -419,7 +419,7 @@ mod test {
     #[test]
     fn eval_string() {
         let vm = VM::new(Conf::new());
-        let vm = vm.init_runtime();
+        let mut vm = vm.init_runtime();
         vm.eval_string("<string>", "var test = 1 + 2").unwrap();
     }
 
@@ -431,7 +431,7 @@ mod test {
         }));
 
         let vm = VM::new(conf);
-        let vm = vm.init_runtime();
+        let mut vm = vm.init_runtime();
 
         let err = vm.eval_string("<string>", "raise Exception()").unwrap_err();
         assert!(matches!(err, Error::Runtime));
@@ -465,7 +465,7 @@ mod test {
         }));
 
         let vm = VM::new(conf);
-        let vm = vm.init_runtime();
+        let mut vm = vm.init_runtime();
 
         vm.eval_string(
             "<string>",
@@ -504,7 +504,7 @@ mod test {
         }));
 
         let vm = VM::new(conf);
-        let vm = vm.init_runtime();
+        let mut vm = vm.init_runtime();
 
         vm.eval_string(
             "<string>",

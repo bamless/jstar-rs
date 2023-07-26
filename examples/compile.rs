@@ -22,7 +22,7 @@ fn main() -> Result<()> {
         }));
 
     let vm = VM::new(conf);
-    let vm = vm.init_runtime();
+    let mut vm = vm.init_runtime();
     vm.eval_string("<string>", "import binary")?;
 
     Ok(())
