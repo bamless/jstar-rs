@@ -78,6 +78,9 @@ impl<'a> VM<'a, Uninit> {
     /// Initializes the J* runtime.
     /// After calliing this method the returned [VM] will be capable of executing J* code.
     pub fn init_runtime(mut self) -> VM<'a, Init> {
+        // TODO: initialize `MAIN_MODULE` here? Need to find a way to enforce this otherwise we
+        // could incur in UB. This should probabily be done at the c-library level.
+
         // SAFETY: `self.vm` is a valid pointer
         unsafe { ffi::jsrInitRuntime(self.vm) };
         VM {
@@ -131,6 +134,9 @@ impl<'a> VM<'a, Init> {
     /// Similar to [#method.eval_string] but takes in an arbitrary [u8] slice, so that it can also
     /// avaluate compiled J* code.
     pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
+        // TODO: fix case in which a string is passed in as `code`.
+        // this should probabily be done at the c-library level
+
         let path = CString::new(path).expect("Couldn't create CString");
         let code = code.as_ref();
         let buf = ffi::JStarBuffer {
@@ -148,9 +154,13 @@ impl<'a> VM<'a, Init> {
         }
     }
 
-    /// Call the value at slot `-(argc - 1)` with the erguments from `-argc..$top`.
-    /// Returns Ok(()) if the call succeded leaving the result on top of the stack,
-    /// Err([Error::Runtime]) if the call failed leaving an Exception on top of the stack.
+    /// Call the value at slot `-(argc - 1)` with the arguments from `-argc..$top`.
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) if the call succeded leaving the result on top of the stack, Err([Error::Runtime]) if
+    /// the the call failed leaving an Exception on top of the stack.
+    /// In both cases, the args and the callee are popped from the stack.
     pub fn call(&mut self, argc: u8) -> Result<()> {
         assert!(self.validate_slot(-(argc as i32 + 1)));
         // SAFETY: `self.vm` is a valid pointer
@@ -235,6 +245,37 @@ impl<'a> VM<'a, Init> {
             let len = unsafe { ffi::jsrGetStringSz(self.vm, slot) };
             Some(JStarString::new(data, len))
         }
+    }
+
+    /// Get a global variable `name` from module `module_name`.
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) in case of success leaving the value on top of the stack, [Err(Error::Runtime)] in
+    /// case of failure leaving an exception on top of the stack.
+    pub fn get_global(&self, module_name: &str, name: &str) -> Result<()> {
+        // TODO: check that `module_name` exists. New J* apis should be added for this.
+        assert!(self.validate_stack());
+        let module_name =
+            CString::new(module_name).expect("Error converting `module` name to c-string");
+        let name = CString::new(name).expect("Error converting `name` to c-string");
+        let res = unsafe { ffi::jsrGetGlobal(self.vm, module_name.as_ptr(), name.as_ptr()) };
+        if !res {
+            Err(Error::Runtime)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Sets a global variable `name` in module `module_name` with the value on top of the stack.
+    /// The value is not popped.
+    pub fn set_global(&self, module_name: &str, name: &str) {
+        // TODO: check that `module_name` exists. New J* apis should be added for this.
+        assert!(self.validate_slot(-1));
+        let module_name =
+            CString::new(module_name).expect("Error converting `module` name to c-string");
+        let name = CString::new(name).expect("Error converting `name` to c-string");
+        unsafe { ffi::jsrSetGlobal(self.vm, module_name.as_ptr(), name.as_ptr()) };
     }
 
     /// Returns a [StackRef] pointing to the topmost stack slot.
@@ -448,6 +489,8 @@ extern "C" fn import_trampoline(
 
 #[cfg(test)]
 mod test {
+    use crate::{convert::ToJStar, CORE_MODULE, MAIN_MODULE};
+
     use super::*;
 
     #[test]
@@ -470,8 +513,68 @@ mod test {
     }
 
     #[test]
-    fn call() {
-        todo!()
+    fn call() -> Result<()> {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+
+        vm.eval_string("<string>", "var add = |a, b| => a + b")?;
+        vm.get_global(MAIN_MODULE, "add")?;
+
+        3.to_jstar(&vm);
+        2.to_jstar(&vm);
+        vm.call(2)?;
+
+        let n = i32::from_jstar(&vm, -1).ok_or(Error::Runtime)?;
+        assert_eq!(n, 5);
+
+        vm.pop();
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic]
+    fn call_panic() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+        vm.get_global(CORE_MODULE, "print").unwrap();
+        vm.call(2).unwrap();
+    }
+
+    #[test]
+    fn get_global() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+
+        vm.eval_string("<string>", "var test = 'test'").unwrap();
+        vm.get_global(MAIN_MODULE, "test").unwrap();
+        let s = JStarString::from_jstar(&vm, -1).unwrap();
+        assert_eq!(s, "test");
+
+        vm.pop();
+    }
+
+    #[test]
+    fn get_global_fail() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+
+        vm.eval_string("<string>", "var test = 'test'").unwrap();
+        let res = vm.get_global(MAIN_MODULE, "doesnotexist").unwrap_err();
+        assert!(matches!(res, Error::Runtime));
+    }
+
+    #[test]
+    fn set_global() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+
+        vm.eval_string("<setglb>", "var test = 'test'").unwrap();
+
+        42.to_jstar(&vm);
+        vm.set_global(MAIN_MODULE, "test");
+        vm.pop();
+
+        vm.eval_string("<setglb>", "std.assert(test == 42)").unwrap();
     }
 
     #[test]
