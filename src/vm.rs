@@ -128,6 +128,8 @@ impl<'a> VM<'a, Init> {
         }
     }
 
+    /// Similar to [#method.eval_string] but takes in an arbitrary [u8] slice, so that it can also
+    /// avaluate compiled J* code.
     pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let code = code.as_ref();
@@ -139,6 +141,20 @@ impl<'a> VM<'a, Init> {
         };
 
         let res = unsafe { ffi::jsrEval(self.vm, path.as_ptr(), &buf as *const ffi::JStarBuffer) };
+        if let Ok(err) = res.try_into() {
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Call the value at slot `-(argc - 1)` with the erguments from `-argc..$top`.
+    /// Returns Ok(()) if the call succeded leaving the result on top of the stack,
+    /// Err([Error::Runtime]) if the call failed leaving an Exception on top of the stack.
+    pub fn call(&mut self, argc: u8) -> Result<()> {
+        assert!(self.validate_slot(-(argc as i32 + 1)));
+        // SAFETY: `self.vm` is a valid pointer
+        let res = unsafe { ffi::jsrCall(self.vm, argc) };
         if let Ok(err) = res.try_into() {
             Err(err)
         } else {
@@ -451,6 +467,11 @@ mod test {
 
         let mut vm = vm.init_runtime();
         vm.eval("<string>", code).unwrap();
+    }
+
+    #[test]
+    fn call() {
+        todo!()
     }
 
     #[test]

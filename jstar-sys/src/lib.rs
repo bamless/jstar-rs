@@ -16,7 +16,7 @@ pub enum JStarResult {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct JStarImportResult {
     pub code: *const c_char,
     pub code_len: usize,
@@ -63,7 +63,7 @@ pub type JStarImportFinalizeCB = extern "C" fn(user_data: *mut c_void) -> ();
 // -----------------------------------------------------------------------------
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct JStarConf {
     pub starting_stack_sz: usize,
     pub first_gc_collection_point: usize,
@@ -159,7 +159,16 @@ extern "C" {
     pub fn jsrGetStringSz(vm: *mut JStarVM, slot: c_int) -> usize;
     pub fn jsrGetString(vm: *mut JStarVM, slot: c_int) -> *const c_char;
 }
-//
+
+// -----------------------------------------------------------------------------
+// MODULE API
+// -----------------------------------------------------------------------------
+
+extern "C" {
+    pub fn jsrSetGlobal(vm: *mut JStarVM, module: *const c_char, name: *const c_char);
+    pub fn jsrGetGlobal(vm: *mut JStarVM, module: *const c_char, name: *const c_char) -> bool;
+}
+
 // -----------------------------------------------------------------------------
 // TYPE CHECKING FUNCTIONS
 // -----------------------------------------------------------------------------
@@ -213,7 +222,7 @@ pub union JStarRegEntry {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct JStarRegMethod {
     cls: *const c_char,
     name: *const c_char,
@@ -221,7 +230,7 @@ pub struct JStarRegMethod {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct JStarRegFunction {
     name: *const c_char,
     fun: JStarNative,
@@ -259,6 +268,7 @@ extern "C" {
 // -----------------------------------------------------------------------------
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct JStarBuffer {
     pub vm: *mut JStarVM,
     pub capacity: usize,
