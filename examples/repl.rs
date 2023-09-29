@@ -20,8 +20,7 @@ fn main() -> Result<()> {
         io::stdout().flush()?;
 
         let mut line = String::new();
-        let nread = stdin.read_line(&mut line)?;
-        if nread == 0 {
+        if stdin.read_line(&mut line)? == 0 {
             break;
         }
 
