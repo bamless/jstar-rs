@@ -489,8 +489,9 @@ extern "C" fn import_trampoline(
 
 #[cfg(test)]
 mod test {
-    use crate::{convert::ToJStar, CORE_MODULE, MAIN_MODULE};
+    #![allow(clippy::unwrap_used)]
 
+    use crate::{convert::ToJStar, CORE_MODULE, MAIN_MODULE};
     use super::*;
 
     #[test]

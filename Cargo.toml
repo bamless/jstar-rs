@@ -12,7 +12,7 @@ categories = ["api-bindings"]
 edition = "2021"
 
 [dependencies]
-jstar-sys = { path = "jstar-sys", version="0.1.0+1.9.0"}
+jstar-sys = { path = "jstar-sys", version="0.1.0"}
 thiserror = "1.0.43"
 
 [features]

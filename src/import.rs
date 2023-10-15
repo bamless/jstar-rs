@@ -24,7 +24,7 @@ pub enum Module {
 impl Module {
     /// Construct a new [Module] with J* source code.
     pub fn source(src: String, path: String) -> Self {
-        Self::source_with_reg(src, path, std::ptr::null_mut() as *mut ffi::JStarNativeReg)
+        Self::source_with_reg(src, path, std::ptr::null_mut())
     }
 
     /// Same as [source](#method.source) but with a native registry.
@@ -38,7 +38,7 @@ impl Module {
 
     /// Construct a new module with J* bytecode.
     pub fn binary(code: Vec<u8>, path: String) -> Self {
-        Self::binary_with_reg(code, path, std::ptr::null_mut() as *mut ffi::JStarNativeReg)
+        Self::binary_with_reg(code, path, std::ptr::null_mut())
     }
 
     /// Same as [source](#method.binary) but with a native registry.
