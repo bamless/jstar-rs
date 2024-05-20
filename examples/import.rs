@@ -1,4 +1,4 @@
-use jstar::{conf::Conf, import::Module, vm::VM, error::Result};
+use jstar::{conf::Conf, error::Result, import::Module, vm::VM};
 
 fn main() -> Result<()> {
     let conf = Conf::new()

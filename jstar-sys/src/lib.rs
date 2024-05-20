@@ -1,5 +1,6 @@
 use std::ffi::{self, c_void};
 use std::os::raw::{c_char, c_int};
+use std::usize;
 
 pub enum JStarVM {}
 
@@ -95,19 +96,29 @@ extern "C" {
 
 extern "C" {
     pub fn jsrEvalString(vm: *mut JStarVM, path: *const c_char, src: *const c_char) -> JStarResult;
+
     pub fn jsrEvalModuleString(
         vm: *mut JStarVM,
         path: *const c_char,
         module: *const c_char,
         src: *const c_char,
     );
-    pub fn jsrEval(vm: *mut JStarVM, path: *const c_char, code: *const JStarBuffer) -> JStarResult;
+
+    pub fn jsrEval(
+        vm: *mut JStarVM,
+        path: *const c_char,
+        code: *const c_void,
+        len: usize,
+    ) -> JStarResult;
+
     pub fn jsrEvalModule(
         vm: *mut JStarVM,
         path: *const c_char,
         module: *const c_char,
-        code: *const JStarBuffer,
+        code: *const c_void,
+        len: usize,
     ) -> JStarResult;
+
     pub fn jsrCall(vm: *mut JStarVM, argc: u8) -> JStarResult;
     pub fn jsrCallMethod(vm: *mut JStarVM, name: *const c_char, argc: u8);
 }

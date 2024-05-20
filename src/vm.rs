@@ -78,9 +78,6 @@ impl<'a> VM<'a, Uninit> {
     /// Initializes the J* runtime.
     /// After calliing this method the returned [VM] will be capable of executing J* code.
     pub fn init_runtime(mut self) -> VM<'a, Init> {
-        // TODO: initialize `MAIN_MODULE` here? Need to find a way to enforce this otherwise we
-        // could incur in UB. This should probabily be done at the c-library level.
-
         // SAFETY: `self.vm` is a valid pointer
         unsafe { ffi::jsrInitRuntime(self.vm) };
         VM {
@@ -134,19 +131,9 @@ impl<'a> VM<'a, Init> {
     /// Similar to [#method.eval_string] but takes in an arbitrary [u8] slice, so that it can also
     /// avaluate compiled J* code.
     pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
-        // TODO: fix case in which a string is passed in as `code`.
-        // this should probabily be done at the c-library level
-
         let path = CString::new(path).expect("Couldn't create CString");
         let code = code.as_ref();
-        let buf = ffi::JStarBuffer {
-            vm: self.vm,
-            capacity: code.len(),
-            size: code.len(),
-            data: code.as_ptr() as *mut c_char,
-        };
-
-        let res = unsafe { ffi::jsrEval(self.vm, path.as_ptr(), &buf as *const ffi::JStarBuffer) };
+        let res = unsafe { ffi::jsrEval(self.vm, path.as_ptr(), code.as_ptr() as *const c_void, code.len()) };
         if let Ok(err) = res.try_into() {
             Err(err)
         } else {
@@ -491,8 +478,8 @@ extern "C" fn import_trampoline(
 mod test {
     #![allow(clippy::unwrap_used)]
 
-    use crate::{convert::ToJStar, CORE_MODULE, MAIN_MODULE};
     use super::*;
+    use crate::{convert::ToJStar, CORE_MODULE, MAIN_MODULE};
 
     #[test]
     fn eval_string() {
@@ -503,7 +490,7 @@ mod test {
     }
 
     #[test]
-    fn eval() {
+    fn eval_bin() {
         let vm = VM::new(Conf::new());
         let code = vm
             .compile_in_memory("<string>", "print('Hello, World!')")
@@ -575,7 +562,8 @@ mod test {
         vm.set_global(MAIN_MODULE, "test");
         vm.pop();
 
-        vm.eval_string("<setglb>", "std.assert(test == 42)").unwrap();
+        vm.eval_string("<setglb>", "std.assert(test == 42)")
+            .unwrap();
     }
 
     #[test]
