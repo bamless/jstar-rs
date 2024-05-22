@@ -42,7 +42,7 @@ pub struct VM<'a, State = Init> {
 
 impl<'a, State> Drop for VM<'a, State> {
     fn drop(&mut self) {
-        if let VMOwnership::Owned(_) = self.ownership {
+        if let VMOwnership::Owned(_trampolines) = &self.ownership {
             unsafe { ffi::jsrFreeVM(self.vm) };
         }
     }
@@ -133,7 +133,14 @@ impl<'a> VM<'a, Init> {
     pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let code = code.as_ref();
-        let res = unsafe { ffi::jsrEval(self.vm, path.as_ptr(), code.as_ptr() as *const c_void, code.len()) };
+        let res = unsafe {
+            ffi::jsrEval(
+                self.vm,
+                path.as_ptr(),
+                code.as_ptr() as *const c_void,
+                code.len(),
+            )
+        };
         if let Ok(err) = res.try_into() {
             Err(err)
         } else {
