@@ -29,7 +29,7 @@ impl<'vm> String<'vm> {
         std::str::from_utf8(self.as_bytes())
     }
 
-    /// Returns this String as a [&\[u8\]]
+    /// Returns this String as a &[[u8]]
     pub fn as_bytes(&self) -> &[u8] {
         // SAFETY: We know the vm is still valid (`self.phantom` lifetime). Also, as we have an
         // exclusive reference to the vm, we know the J* string couldn't have been possibly popped
