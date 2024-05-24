@@ -3,7 +3,7 @@ use crate::vm::VM;
 use std::{ffi::c_char, hash::Hash, marker::PhantomData};
 
 /// `String` represents a J* string.
-/// In J* `String`s are basically [\[u8\]] as they can store arbitrary data and their encoding is not
+/// In J* `String`s are basically `&[u8]` as they can store arbitrary data and their encoding is not
 /// assumed.
 #[derive(Debug, Eq)]
 pub struct String<'vm> {

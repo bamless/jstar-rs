@@ -22,7 +22,7 @@ pub type Index = c_int;
 /// Marker struct that represents an uninitialized vm.
 /// An uninitialized vm doesn't have a language runtime yet, so it can only perform operations that
 /// don't require one, such as compiling J* code or allocating vm-managed buffers.
-/// To obtain a fully initialized vm that can execute code call the [init_runtime](struct.VM.html#method.init_runtime) method.
+/// To obtain a fully initialized vm that can execute code call the [VM::init_runtime] method.
 /// Keep in mind that initializing the runtime *will* execute J* code and allocate memory and as
 /// such it's a (relatively) slow process. Only call the initialization when needed and outside
 /// performance critical sections.
@@ -128,7 +128,7 @@ impl<'a> VM<'a, Init> {
         }
     }
 
-    /// Similar to [#method.eval_string] but takes in an arbitrary [u8] slice, so that it can also
+    /// Similar to [VM::eval_string] but takes in an arbitrary [u8] slice, so that it can also
     /// avaluate compiled J* code.
     pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
@@ -185,7 +185,7 @@ impl<'a> VM<'a, Init> {
 
     /// Push a `Number` onto the VM stack.
     /// This method panics if there isn't enough stack space for one element.
-    /// Use [ensure_stack](#method.ensure_stack) if you are not sure the stack has enough space.
+    /// Use [VM::ensure_stack] if you are not sure the stack has enough space.
     pub fn push_number(&self, number: f64) {
         assert!(self.validate_stack(), "VM stack overflow");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -214,7 +214,7 @@ impl<'a> VM<'a, Init> {
     /// Since a J* string can contain arbitrary bytes, this method accepts anything that can be
     /// trated as a byte slice.
     /// This method panics if there isn't enough stack space for one element.
-    /// Use [ensure_stack](#method.ensure_stack) if you are not sure the stack has enough space.
+    /// Use [VM::ensure_stack] if you are not sure the stack has enough space.
     pub fn push_string(&self, str: impl AsRef<[u8]>) {
         let str = str.as_ref();
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -318,6 +318,22 @@ impl<'a> VM<'a, Init> {
 }
 
 impl<'a, State> VM<'a, State> {
+    /// Compiles J* source code into bytecode.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - The J* source code to compile
+    ///
+    /// * `path` - The path of the source code. It doesn't have to be a real filesystem path, as it
+    /// is only used during error callbacks to provide useful context to the client handling the
+    /// error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
+    /// to pass its path to this function.
+    ///
+    /// * `out` - A [Write] implementor to write the compiled bytecode to
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) if the compilation succeded, Err([Error]) otherwise.
     pub fn compile(&self, path: &str, src: &str, mut out: impl Write) -> Result<()> {
         let path = CString::new(path).expect("`path` to not contain NUL characters");
         let src = CString::new(src).expect("`src` to not contain NUL characters");
@@ -351,6 +367,20 @@ impl<'a, State> VM<'a, State> {
         }
     }
 
+    /// Similar to [VM::compile] but returns the compiled bytecode as a [`Vec<u8>`].
+    /// This method is convenient when the compiled bytecode needs to be stored in memory.
+    ///
+    /// # arguments
+    ///
+    /// * `path` - The path of the source code. It doesn't have to be a real filesystem path, as it
+    /// is only used during error callbacks to provide useful context to the client handling the
+    /// error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
+    /// to pass its path to this function.
+    ///
+    /// * `src` - The J* source code to compile
+    ///
+    /// # Returns
+    /// Ok([`Vec<u8>`]) if the compilation succeded, Err([Error]) otherwise.
     pub fn compile_in_memory(&self, path: &str, src: &str) -> Result<Vec<u8>> {
         let mut out = Vec::new();
         self.compile(path, src, &mut out)?;

@@ -1,9 +1,6 @@
 use crate::ffi;
 
-use std::{error::Error, ffi::CString};
-
-/// Type representing the result of a module import.
-pub type ImportResult = Result<Module, Box<dyn Error>>;
+use std::ffi::CString;
 
 /// Represents an imported J* module.
 pub enum Module {

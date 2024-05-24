@@ -23,7 +23,7 @@ pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>
 /// `Some(Module)` if the module was found, `None` otherwise.
 pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
 
-/// Strutc containing a set of configurations for the J* vm.
+/// Struct containing a set of configurations for the J* vm.
 #[derive(Default)]
 pub struct Conf<'a> {
     /// The initial stack size of the vm (in bytes)
