@@ -291,7 +291,7 @@ impl<'a> VM<'a, Init> {
     /// Registers a native function in the global scope of module `module`.
     ///
     /// This is a convenience method that is equivalent to doing:
-    /// ```rust
+    /// ```ignore
     /// vm.push_native(module, "func_name", func, argc);
     /// vm.set_global(module, "func_name");
     /// vm.pop();
