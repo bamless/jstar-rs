@@ -4,7 +4,7 @@ use std::usize;
 
 pub enum JStarVM {}
 
-type JStarNative = extern "C" fn(*mut JStarVM) -> c_int;
+pub type JStarNative = extern "C" fn(*mut JStarVM) -> c_int;
 
 #[repr(C)]
 pub enum JStarResult {
@@ -33,7 +33,7 @@ impl Default for JStarImportResult {
             code: std::ptr::null() as *const c_char,
             code_len: 0,
             path: std::ptr::null() as *const c_char,
-            reg: std::ptr::null_mut() as *mut JStarNativeReg,
+            reg: std::ptr::null_mut(),
             finalize: None,
             user_data: std::ptr::null_mut() as *const c_void,
         }

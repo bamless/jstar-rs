@@ -272,6 +272,43 @@ impl<'a> VM<'a, Init> {
         unsafe { ffi::jsrSetGlobal(self.vm, module_name.as_ptr(), name.as_ptr()) };
     }
 
+    /// Pushes a naive function onto the stack.
+    ///
+    /// See [crate::native] for utility functions and macros to create natives.
+    ///
+    /// # Arguments
+    ///
+    /// * `module` - The name of the module the function belongs to
+    /// * `name` - The name of the function
+    /// * `func` - The native function to push
+    /// * `argc` - The number of arguments the function takes
+    pub fn push_native(&self, module: &str, name: &str, func: ffi::JStarNative, argc: u8) {
+        let module = CString::new(module).expect("`module` to be a valid CString");
+        let name = CString::new(name).expect("`name` to be a valid CString");
+        unsafe { ffi::jsrPushNative(self.vm, module.as_ptr(), name.as_ptr(), func, argc) };
+    }
+
+    /// Registers a native function in the global scope of module `module`.
+    ///
+    /// This is a convenience method that is equivalent to doing:
+    /// ```rust
+    /// vm.push_native(module, "func_name", func, argc);
+    /// vm.set_global(module, "func_name");
+    /// vm.pop();
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `module` - The name of the module the function belongs to
+    /// * `name` - The name the function will be bound to
+    /// * `func` - The native function to register
+    /// * `argc` - The number of arguments the function takes
+    pub fn register_native(&mut self, module: &str, name: &str, func: ffi::JStarNative, argc: u8) {
+        self.push_native(module, name, func, argc);
+        self.set_global(module, name);
+        self.pop();
+    }
+
     /// Returns a [StackRef] pointing to the topmost stack slot.
     pub fn get_top(&self) -> StackRef {
         StackRef {

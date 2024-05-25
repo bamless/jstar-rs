@@ -5,6 +5,7 @@ pub mod conf;
 pub mod convert;
 pub mod error;
 pub mod import;
+pub mod native;
 pub mod string;
 pub mod vm;
 
