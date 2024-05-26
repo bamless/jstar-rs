@@ -210,6 +210,18 @@ impl<'a> VM<'a, Init> {
         }
     }
 
+    /// Gets a J* `Number` from the stack, checking that it is a `Number` and leaving a
+    /// `TypeException` on the stack if it is not.
+    pub fn check_number(&self, slot: Index, name: &str) -> Result<f64> {
+        assert!(self.validate_slot(slot), "VM stack overflow");
+        let name = CString::new(name).expect("Error converting `name` to c-string");
+        if !unsafe { ffi::jsrCheckNumber(self.vm, slot, name.as_ptr()) } {
+            Err(Error::Runtime)
+        } else {
+            Ok(unsafe { ffi::jsrGetNumber(self.vm, slot) })
+        }
+    }
+
     /// Push a `String` onto the VM stack.
     /// Since a J* string can contain arbitrary bytes, this method accepts anything that can be
     /// trated as a byte slice.
@@ -238,6 +250,20 @@ impl<'a> VM<'a, Init> {
             let data = unsafe { ffi::jsrGetString(self.vm, slot) };
             let len = unsafe { ffi::jsrGetStringSz(self.vm, slot) };
             Some(JStarString::new(data, len))
+        }
+    }
+
+    /// Gets a J* `String` from the stack, checking that it is a `String` and leaving a
+    /// `TypeException` on top of the stack if it is not.
+    pub fn check_string(&self, slot: Index, name: &str) -> Result<JStarString> {
+        assert!(self.validate_slot(slot), "VM stack overflow");
+        let name = CString::new(name).expect("Error converting `name` to c-string");
+        if !unsafe { ffi::jsrCheckString(self.vm, slot, name.as_ptr()) } {
+            Err(Error::Runtime)
+        } else {
+            let data = unsafe { ffi::jsrGetString(self.vm, slot) };
+            let len = unsafe { ffi::jsrGetStringSz(self.vm, slot) };
+            Ok(JStarString::new(data, len))
         }
     }
 

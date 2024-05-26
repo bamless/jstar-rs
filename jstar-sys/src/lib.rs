@@ -4,7 +4,7 @@ use std::usize;
 
 pub enum JStarVM {}
 
-pub type JStarNative = extern "C" fn(*mut JStarVM) -> c_int;
+pub type JStarNative = extern "C" fn(*mut JStarVM) -> bool;
 
 #[repr(C)]
 pub enum JStarResult {
@@ -197,6 +197,19 @@ extern "C" {
     pub fn jsrIsTable(vm: *mut JStarVM, slot: c_int) -> bool;
     pub fn jsrIsFunction(vm: *mut JStarVM, slot: c_int) -> bool;
     pub fn jsrIsUserdata(vm: *mut JStarVM, slot: c_int) -> bool;
+
+    pub fn jsrCheckNumber(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckInt(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckString(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckList(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckTuple(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckBoolean(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckNull(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckInstance(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckHandle(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckTable(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckFunction(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
+    pub fn jsrCheckUserdata(vm: *mut JStarVM, slot: c_int, name: *const c_char) -> bool;
 }
 
 // -----------------------------------------------------------------------------

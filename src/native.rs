@@ -3,13 +3,14 @@
 macro_rules! native {
     ($v:vis fn $name:ident($arg:ident) $b:block) => {
         #[allow(non_snake_case)]
-        $v extern "C" fn $name(vm: *mut $crate::ffi::JStarVM) -> std::os::raw::c_int {
+        $v extern "C" fn $name(vm: *mut $crate::ffi::JStarVM) -> bool {
             let mut vm = unsafe { $crate::vm::VM::from_ptr(vm) };
             let $arg = &mut vm;
-            let res: $crate::error::Result<()> = $b;
+            let func = |$arg: &mut $crate::vm::VM| -> $crate::error::Result<()> { $b };
+            let res = func($arg);
             match res {
-                Err(_) => 0,
-                Ok(()) => 1,
+                Err(_) => false,
+                Ok(()) => true,
             }
         }
     };

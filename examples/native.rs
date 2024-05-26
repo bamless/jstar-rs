@@ -4,7 +4,7 @@ use jstar::{
 };
 
 native!(fn nativePrint(vm) {
-    let str = String::from_jstar(vm, 1).unwrap();
+    let str = String::from_jstar_checked(vm, 1, "str")?;
     println!("✶{}✶", str.as_str().unwrap());
     Ok(())
 });
@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let mut vm = vm.init_runtime();
 
     vm.register_native(MAIN_MODULE, "nativePrint", nativePrint, 1);
-    vm.eval_string("<string>", "nativePrint('🦀')")?;
+    vm.eval_string("<string>", "nativePrint(3)")?;
 
     Ok(())
 }
