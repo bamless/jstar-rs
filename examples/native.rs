@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let mut vm = vm.init_runtime();
 
     vm.register_native(MAIN_MODULE, "nativePrint", nativePrint, 1);
-    vm.eval_string("<string>", "nativePrint(3)")?;
+    vm.eval_string("<string>", "nativePrint('🦀')")?;
 
     Ok(())
 }
