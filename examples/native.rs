@@ -19,9 +19,7 @@ fn main() -> Result<()> {
         eprintln!("{msg}");
     }));
 
-    let vm = VM::new(conf);
-    let mut vm = vm.init_runtime();
-
+    let vm = VM::new(conf).init_runtime();
     vm.register_native(MAIN_MODULE, "nativePrint", nativePrint, 1);
     vm.eval_string("<string>", "nativePrint('🦀')")?;
 

@@ -329,10 +329,12 @@ impl<'a> VM<'a, Init> {
     /// * `name` - The name the function will be bound to
     /// * `func` - The native function to register
     /// * `argc` - The number of arguments the function takes
-    pub fn register_native(&mut self, module: &str, name: &str, func: ffi::JStarNative, argc: u8) {
+    pub fn register_native(&self, module: &str, name: &str, func: ffi::JStarNative, argc: u8) {
         self.push_native(module, name, func, argc);
         self.set_global(module, name);
-        self.pop();
+        // SAFETY: `self.vm` is a valid J* vm pointer and we are guaranteed that the stack will
+        // not underflow (we just pushed ane element)
+        unsafe { ffi::jsrPop(self.vm) };
     }
 
     /// Returns a [StackRef] pointing to the topmost stack slot.
