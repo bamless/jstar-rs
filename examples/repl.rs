@@ -11,8 +11,7 @@ fn main() -> Result<()> {
         eprintln!("{msg}");
     }));
 
-    let vm = VM::new(conf);
-    let mut vm = vm.init_runtime();
+    let vm = VM::new(conf).init_runtime();
 
     let mut stdin = io::stdin().lock();
     loop {

@@ -117,7 +117,7 @@ impl<'a> VM<'a, Init> {
     /// a file, it is reccomended to pass its path to this function.
     ///
     /// * `src` - The J* source code
-    pub fn eval_string(&mut self, path: &str, src: &str) -> Result<()> {
+    pub fn eval_string(&self, path: &str, src: &str) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let src = CString::new(src).expect("Couldn't create CString");
         let res = unsafe { ffi::jsrEvalString(self.vm, path.as_ptr(), src.as_ptr()) };
@@ -130,7 +130,7 @@ impl<'a> VM<'a, Init> {
 
     /// Similar to [VM::eval_string] but takes in an arbitrary [u8] slice, so that it can also
     /// avaluate compiled J* code.
-    pub fn eval(&mut self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
+    pub fn eval(&self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let code = code.as_ref();
         let res = unsafe {
@@ -583,8 +583,7 @@ mod test {
 
     #[test]
     fn eval_string() {
-        let vm = VM::new(Conf::new());
-        let mut vm = vm.init_runtime();
+        let vm = VM::new(Conf::new()).init_runtime();
         vm.eval_string("<string>", "print('Hello, World!')")
             .unwrap();
     }
@@ -596,7 +595,7 @@ mod test {
             .compile_in_memory("<string>", "print('Hello, World!')")
             .unwrap();
 
-        let mut vm = vm.init_runtime();
+        let vm = vm.init_runtime();
         vm.eval("<string>", code).unwrap();
     }
 
@@ -643,8 +642,7 @@ mod test {
 
     #[test]
     fn get_global_fail() {
-        let vm = VM::new(Conf::new());
-        let mut vm = vm.init_runtime();
+        let vm = VM::new(Conf::new()).init_runtime();
 
         vm.eval_string("<string>", "var test = 'test'").unwrap();
         let res = vm.get_global(MAIN_MODULE, "doesnotexist").unwrap_err();
@@ -673,8 +671,7 @@ mod test {
             num_errors += 1;
         }));
 
-        let vm = VM::new(conf);
-        let mut vm = vm.init_runtime();
+        let vm = VM::new(conf).init_runtime();
 
         let err = vm.eval_string("<string>", "raise Exception()").unwrap_err();
         assert!(matches!(err, Error::Runtime));
@@ -707,8 +704,7 @@ mod test {
             }
         }));
 
-        let vm = VM::new(conf);
-        let mut vm = vm.init_runtime();
+        let vm = VM::new(conf).init_runtime();
 
         vm.eval_string(
             "<string>",
@@ -746,8 +742,7 @@ mod test {
             }
         }));
 
-        let vm = VM::new(conf);
-        let mut vm = vm.init_runtime();
+        let vm = VM::new(conf).init_runtime();
 
         vm.eval_string(
             "<string>",
