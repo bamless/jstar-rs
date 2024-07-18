@@ -148,6 +148,25 @@ impl<'a> VM<'a, Init> {
         }
     }
 
+    pub fn eval_in_module(&self, path: &str, module: &str, code: impl AsRef<[u8]>) -> Result<()> {
+        let path = CString::new(path).expect("Couldn't create CString");
+        let module = CString::new(module).expect("Couldn't create CString");
+        let res = unsafe {
+            ffi::jsrEvalModule(
+                self.vm,
+                path.as_ptr(),
+                module.as_ptr(),
+                code.as_ref().as_ptr() as *const c_void,
+                code.as_ref().len(),
+            )
+        };
+        if let Ok(err) = res.try_into() {
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Call the value at slot `-(argc - 1)` with the arguments from `-argc..$top`.
     ///
     /// # Returns
@@ -289,13 +308,17 @@ impl<'a> VM<'a, Init> {
 
     /// Sets a global variable `name` in module `module_name` with the value on top of the stack.
     /// The value is not popped.
-    pub fn set_global(&self, module_name: &str, name: &str) {
+    pub fn set_global(&self, module_name: &str, name: &str) -> Result<()> {
         // TODO: check that `module_name` exists. New J* apis should be added for this.
         assert!(self.validate_slot(-1));
-        let module_name =
-            CString::new(module_name).expect("Error converting `module` name to c-string");
-        let name = CString::new(name).expect("Error converting `name` to c-string");
-        unsafe { ffi::jsrSetGlobal(self.vm, module_name.as_ptr(), name.as_ptr()) };
+        let module_name = CString::new(module_name).expect("`module` to be a valid CString");
+        let name = CString::new(name).expect("`name` to be a valid CString");
+        let res = unsafe { ffi::jsrSetGlobal(self.vm, module_name.as_ptr(), name.as_ptr()) };
+        if !res {
+            Err(Error::Runtime)
+        } else {
+            Ok(())
+        }
     }
 
     /// Pushes a naive function onto the stack.
@@ -308,10 +331,22 @@ impl<'a> VM<'a, Init> {
     /// * `name` - The name of the function
     /// * `func` - The native function to push
     /// * `argc` - The number of arguments the function takes
-    pub fn push_native(&self, module: &str, name: &str, func: ffi::JStarNative, argc: u8) {
+    pub fn push_native(
+        &self,
+        module: &str,
+        name: &str,
+        func: ffi::JStarNative,
+        argc: u8,
+    ) -> Result<()> {
         let module = CString::new(module).expect("`module` to be a valid CString");
         let name = CString::new(name).expect("`name` to be a valid CString");
-        unsafe { ffi::jsrPushNative(self.vm, module.as_ptr(), name.as_ptr(), func, argc) };
+        let res =
+            unsafe { ffi::jsrPushNative(self.vm, module.as_ptr(), name.as_ptr(), func, argc) };
+        if !res {
+            Err(Error::Runtime)
+        } else {
+            Ok(())
+        }
     }
 
     /// Registers a native function in the global scope of module `module`.
@@ -329,12 +364,19 @@ impl<'a> VM<'a, Init> {
     /// * `name` - The name the function will be bound to
     /// * `func` - The native function to register
     /// * `argc` - The number of arguments the function takes
-    pub fn register_native(&self, module: &str, name: &str, func: ffi::JStarNative, argc: u8) {
-        self.push_native(module, name, func, argc);
-        self.set_global(module, name);
+    pub fn register_native(
+        &self,
+        module: &str,
+        name: &str,
+        func: ffi::JStarNative,
+        argc: u8,
+    ) -> Result<()> {
+        self.push_native(module, name, func, argc)?;
+        self.set_global(module, name)?;
         // SAFETY: `self.vm` is a valid J* vm pointer and we are guaranteed that the stack will
         // not underflow (we just pushed ane element)
         unsafe { ffi::jsrPop(self.vm) };
+        Ok(())
     }
 
     /// Returns a [StackRef] pointing to the topmost stack slot.
@@ -581,7 +623,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
-    use crate::{convert::ToJStar, CORE_MODULE, MAIN_MODULE};
+    use crate::{convert::ToJStar, native, CORE_MODULE, MAIN_MODULE};
 
     #[test]
     fn eval_string() {
@@ -645,9 +687,15 @@ mod test {
     #[test]
     fn get_global_fail() {
         let vm = VM::new(Conf::new()).init_runtime();
-
         vm.eval_string("<string>", "var test = 'test'").unwrap();
         let res = vm.get_global(MAIN_MODULE, "doesnotexist").unwrap_err();
+        assert!(matches!(res, Error::Runtime));
+    }
+
+    #[test]
+    fn get_global_fail_module() {
+        let vm = VM::new(Conf::new()).init_runtime();
+        let res = vm.get_global("does_not_exist", "doesnotexist").unwrap_err();
         assert!(matches!(res, Error::Runtime));
     }
 
@@ -659,11 +707,85 @@ mod test {
         vm.eval_string("<setglb>", "var test = 'test'").unwrap();
 
         42.to_jstar(&vm);
-        vm.set_global(MAIN_MODULE, "test");
+        vm.set_global(MAIN_MODULE, "test").unwrap();
         vm.pop();
 
         vm.eval_string("<setglb>", "std.assert(test == 42)")
             .unwrap();
+    }
+
+    #[test]
+    fn set_global_fail() {
+        let vm = VM::new(Conf::new());
+        let mut vm = vm.init_runtime();
+
+        42.to_jstar(&vm);
+        let res = vm.set_global("does_not_exist", "test");
+        vm.pop();
+
+        assert!(matches!(res, Err(Error::Runtime)));
+    }
+
+    #[test]
+    fn push_native() {
+        let mut vm = VM::new(Conf::new()).init_runtime();
+
+        native!(fn id(vm) {
+            let n = vm.get_number(1).unwrap();
+            n.to_jstar(vm);
+            Ok(())
+        });
+
+        vm.push_native(MAIN_MODULE, "id", id, 1).unwrap();
+        vm.set_global(MAIN_MODULE, "id").unwrap();
+        vm.pop();
+
+        vm.eval_string("<string>", "std.assert(id(42) == 42)")
+            .unwrap();
+    }
+
+    #[test]
+    fn push_native_fail() {
+        let vm = VM::new(Conf::new()).init_runtime();
+
+        native!(fn id(vm) {
+            let n = vm.get_number(1).unwrap();
+            n.to_jstar(vm);
+            Ok(())
+        });
+
+        let res = vm.push_native("does_not_exist", "id", id, 1);
+        assert!(matches!(res, Err(Error::Runtime)));
+    }
+
+    #[test]
+    fn register_native() {
+        let vm = VM::new(Conf::new()).init_runtime();
+
+        native!(fn id(vm) {
+            let n = vm.get_number(1).unwrap();
+            n.to_jstar(vm);
+            Ok(())
+        });
+
+        vm.register_native(MAIN_MODULE, "id", id, 1).unwrap();
+
+        vm.eval_string("<string>", "std.assert(id(42) == 42)")
+            .unwrap();
+    }
+
+    #[test]
+    fn register_native_fail() {
+        let vm = VM::new(Conf::new()).init_runtime();
+
+        native!(fn id(vm) {
+            let n = vm.get_number(1).unwrap();
+            n.to_jstar(vm);
+            Ok(())
+        });
+
+        let res = vm.register_native("does_not_exist", "id", id, 1);
+        assert!(matches!(res, Err(Error::Runtime)));
     }
 
     #[test]

@@ -147,7 +147,7 @@ extern "C" {
         name: *const c_char,
         nat: JStarNative,
         argc: u8,
-    );
+    ) -> bool;
     pub fn jsrPop(vm: *mut JStarVM);
     pub fn jsrPopN(vm: *mut JStarVM, n: c_int);
     pub fn jsrTop(vm: *mut JStarVM) -> c_int;
@@ -176,7 +176,7 @@ extern "C" {
 // -----------------------------------------------------------------------------
 
 extern "C" {
-    pub fn jsrSetGlobal(vm: *mut JStarVM, module: *const c_char, name: *const c_char);
+    pub fn jsrSetGlobal(vm: *mut JStarVM, module: *const c_char, name: *const c_char) -> bool;
     pub fn jsrGetGlobal(vm: *mut JStarVM, module: *const c_char, name: *const c_char) -> bool;
 }
 
