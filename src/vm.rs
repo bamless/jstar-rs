@@ -290,8 +290,8 @@ impl<'a> VM<'a, Init> {
     ///
     /// # Returns
     ///
-    /// Ok(()) in case of success leaving the value on top of the stack, [Err(Error::Runtime)] in
-    /// case of failure leaving an exception on top of the stack.
+    /// `Ok(())` in case of success leaving the value on top of the stack.
+    /// [Err(Error::Runtime)] in case of failure leaving an exception on top of the stack.
     pub fn get_global(&self, module_name: &str, name: &str) -> Result<()> {
         // TODO: check that `module_name` exists. New J* apis should be added for this.
         assert!(self.validate_stack());
@@ -308,6 +308,17 @@ impl<'a> VM<'a, Init> {
 
     /// Sets a global variable `name` in module `module_name` with the value on top of the stack.
     /// The value is not popped.
+    ///
+    /// # Arguments
+    ///
+    /// * `module_name` - The name of the module in which to set the global. Could be any valid J*
+    ///    module name or `CORE_MODULE`/`MAIN_MODULE` for the two build-in modules.
+    /// * `name` - The name of the global variable to set.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on success, leaving the value on top of the stack.
+    /// [Err(Error::Runtime)] in case of failure, leaving an exception on top of the stack.
     pub fn set_global(&self, module_name: &str, name: &str) -> Result<()> {
         // TODO: check that `module_name` exists. New J* apis should be added for this.
         assert!(self.validate_slot(-1));
@@ -331,6 +342,11 @@ impl<'a> VM<'a, Init> {
     /// * `name` - The name of the function
     /// * `func` - The native function to push
     /// * `argc` - The number of arguments the function takes
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on success, leaving the native function on top of the stack.
+    /// [Err(Error::Runtime)] in case of failure, leaving an exception on top of the stack.
     pub fn push_native(
         &self,
         module: &str,
@@ -364,6 +380,11 @@ impl<'a> VM<'a, Init> {
     /// * `name` - The name the function will be bound to
     /// * `func` - The native function to register
     /// * `argc` - The number of arguments the function takes
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on success.
+    /// [Err(Error::Runtime)] in case of failure, leaving an exception on top of the stack.
     pub fn register_native(
         &self,
         module: &str,
