@@ -23,7 +23,7 @@ fn main() -> Result<()> {
             break;
         }
 
-        let _ = vm.eval_string("<repl>", &line);
+        let _ = vm.eval("<repl>", &line);
     }
 
     Ok(())

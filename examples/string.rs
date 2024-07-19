@@ -3,7 +3,7 @@ use jstar::{
 };
 
 fn main() -> Result<()> {
-    let vm = VM::new(Conf::new());
+    let vm = VM::new(Conf::default());
     let vm = vm.init_runtime();
 
     "string from rust".to_jstar(&vm);

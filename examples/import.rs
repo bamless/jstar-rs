@@ -29,7 +29,7 @@ fn main() -> Result<()> {
 
     let vm = VM::new(conf).init_runtime();
 
-    vm.eval_string(
+    vm.eval(
         "<string>",
         "import hello_world for hello
         hello()",
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
 
     println!();
 
-    vm.eval_string("<string>", "import does_not_exist")?;
+    vm.eval("<string>", "import does_not_exist")?;
 
     Ok(())
 }

@@ -21,7 +21,7 @@ fn main() -> Result<()> {
 
     let vm = VM::new(conf).init_runtime();
     vm.register_native(MAIN_MODULE, "nativePrint", nativePrint, 1).unwrap();
-    vm.eval_string("<string>", "nativePrint('🦀')")?;
+    vm.eval("<string>", "nativePrint('🦀')")?;
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 use crate::{
-    error::Result, string::String, vm::{Index, VM}
+    error::Result,
+    vm::{Index, VM},
 };
 
 macro_rules! to_jstar_number_impl {
@@ -40,30 +41,6 @@ pub trait ToJStar {
 
 to_jstar_number_impl!(f64, f32, u64, u32, u16, u8, i64, i32, i16, i8);
 
-impl ToJStar for &str {
-    fn to_jstar(&self, vm: &VM) {
-        vm.push_string(self);
-    }
-}
-
-impl ToJStar for &[u8] {
-    fn to_jstar(&self, vm: &VM) {
-        vm.push_string(self);
-    }
-}
-
-impl<'vm> ToJStar for String<'vm> {
-    fn to_jstar(&self, vm: &VM) {
-        vm.push_string(self.as_ref());
-    }
-}
-
-impl<'vm> ToJStar for &String<'vm> {
-    fn to_jstar(&self, vm: &VM) {
-        (*self).to_jstar(vm);
-    }
-}
-
 /// Trait used to get a value from the J* stack.
 /// Types that implement this trait usually have corresponding `get_...`, `is_...` and `check` methods in the [VM]
 pub trait FromJStar<'vm>: Sized {
@@ -78,13 +55,3 @@ pub trait FromJStar<'vm>: Sized {
 }
 
 from_jstar_number_impl!(f64, f32, u64, u32, u16, u8, i64, i32, i16, i8);
-
-impl<'vm> FromJStar<'vm> for String<'vm> {
-    fn from_jstar(vm: &'vm VM, slot: Index) -> Option<Self> {
-        vm.get_string(slot)
-    }
-
-    fn from_jstar_checked(vm: &'vm VM, slot: Index, name: &str) -> Result<Self> {
-        vm.check_string(slot, name)
-    }
-}

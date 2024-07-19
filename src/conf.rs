@@ -24,7 +24,6 @@ pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>
 pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
 
 /// Struct containing a set of configurations for the J* vm.
-#[derive(Default)]
 pub struct Conf<'a> {
     /// The initial stack size of the vm (in bytes)
     pub starting_stack_sz: usize,
@@ -79,5 +78,11 @@ impl<'a> Conf<'a> {
     pub fn import_callback(mut self, import_cb: ImportCallback<'a>) -> Self {
         self.import_callback = Some(import_cb);
         self
+    }
+}
+
+impl Default for Conf<'_> {
+    fn default() -> Self {
+        Conf::new()
     }
 }

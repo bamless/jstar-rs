@@ -20,6 +20,7 @@ use std::slice::from_raw_parts;
 pub type Index = c_int;
 
 /// Marker struct that represents an uninitialized vm.
+///
 /// An uninitialized vm doesn't have a language runtime yet, so it can only perform operations that
 /// don't require one, such as compiling J* code or allocating vm-managed buffers.
 /// To obtain a fully initialized vm that can execute code call the [VM::init_runtime] method.
@@ -29,11 +30,116 @@ pub type Index = c_int;
 pub struct Uninit;
 
 /// Marker struct that represents a fully initialized J* vm.
+///
 /// Capable of executing J* code, as well as performing any operations an [Uninit] vm can.
 pub struct Init;
 
-/// A J* virtual machine.
-/// This is the main entry point of the J* API.
+/// The J* virtual machine.
+///
+/// This is the main struct used to execute J* code and interact with the J* runtime.
+///
+/// # Examples
+///
+/// The following examples show some pretty basic usage of the VM struct for calling J* code from
+/// Rust and vice versa. For more detailed information on the J* language as a whole and its
+/// stack-based communication protocol for embedding, refer to the [J* language
+/// reference](https://bamless.github.io/jstar).
+///
+/// ## Calling J* code from Rust
+///
+/// To instantiate a new J* vm and evaluate some code:
+/// ```rust
+/// use jstar::{conf::Conf, vm::VM};
+///
+/// // `init_runtime` is needed for the VM to be capable of executing J* code.
+/// let vm = VM::new(Conf::new()).init_runtime();
+/// vm.eval("<eval>", "print('Hello from Rust!')").unwrap();
+/// ```
+///
+/// Using the [VM::eval] (or [VM::eval_in_module]) method is the simplest way to start evaluating
+/// J* code from Rust, but it is pretty limiting in certain situations, as it doesn't allow for
+/// retrieving values from the J* code or passing arguments to it.
+///
+/// Usually, you will use the `eval` methods to execute some code that declares functions, classes
+/// or variables (or that does some other declaative things, like importing a module), and then use
+/// the other provided methods to interact directly with J* `Value`s using the stack-based
+/// communication protocol of the J* VM.  
+/// For example, suppose we want to define an `match` function that uses the built-in `re` module
+/// of J* to find if a given rust string matches a given pattern:
+/// ```rust
+/// # use jstar::{
+/// #     conf::Conf,
+/// #     vm::VM,
+/// #     convert::ToJStar,
+/// #     string::String as JStarString,
+/// #     convert::FromJStar,
+/// #     MAIN_MODULE
+/// # };
+/// let mut vm = VM::new(Conf::new()).init_runtime();
+///
+/// vm.eval("<eval>", "
+/// import re
+///
+/// fun matches(string, pattern)
+///     return re.match(string, pattern)
+/// end")
+/// .expect("`eval` to succed");
+///
+/// // `matches("Hello, World!", "[wW]orld!?")`
+/// vm.get_global(MAIN_MODULE, "matches").expect("`get_global` to succeed");
+/// "Hello, World!".to_jstar(&vm);
+/// "[wW]orld!?".to_jstar(&vm);
+/// vm.call(2).expect("`call` to succeed");
+///
+/// let re_match = JStarString::from_jstar(&vm, -1).expect("`get_string` to succeed");
+/// assert_eq!(re_match, "World!");
+///
+/// // We are done with the result, pop it from the stack
+/// vm.pop();
+/// ```
+///
+/// This is just a subset of the things you can do with the J* VM from the embedded side. For a
+/// more complete overview of the J* language and its capabilities, refer to the [J* language
+/// reference](https://bamless.github.io/jstar), and the documentation of `impl VM` methods.
+///
+/// ## Calling Rust code from J*
+///
+/// Other than calling J* code from Rust, you can also call Rust code from J* using the native
+/// registration API. We will focus on the simplest case, i.e. registering a function directly
+/// using the `native!` macro along with the `register_native` method. To see how to dynamically
+/// load a shared library and register functions from it, refer to the [J* language reference](https://bamless.github.io/jstar)
+/// and the [`crate::import`] module.
+/// ```rust
+/// # use jstar::{
+/// #     conf::Conf,
+/// #     vm::VM,
+/// #     convert::ToJStar,
+/// #     string::String as JStarString,
+/// #     convert::FromJStar,
+/// #     MAIN_MODULE,
+/// #     native,
+/// # };
+/// let vm = VM::new(Conf::new()).init_runtime();
+/// 
+/// native!(fn rustAdd(vm) {
+///     // First argument
+///     let a = i32::from_jstar_checked(vm, 1, "a")?;
+///     // Second argument
+///     let b = i32::from_jstar_checked(vm, 2, "b")?;
+///
+///     (a + b).to_jstar(vm);
+///
+///     Ok(())
+/// });
+///
+/// vm.register_native(MAIN_MODULE, "rustAdd", rustAdd, 2).expect("`register_native` to succeed");
+/// vm.eval("<eval>", "std.assert(rustAdd(2, 3) == 5)").expect("`eval` to succeed");
+/// ```
+///
+/// # Configuration
+///
+/// Refer to [`Conf`] for information on how to configure the VM.
+///
 pub struct VM<'a, State = Init> {
     vm: *mut ffi::JStarVM,
     ownership: VMOwnership<'a>,
@@ -48,6 +154,7 @@ impl<'a, State> Drop for VM<'a, State> {
     }
 }
 
+/// Methods available only when the [`VM`] is in an [Uninit]ialized state.
 impl<'a> VM<'a, Uninit> {
     /// Constructs a new J* vm configured with the settings specified in [Conf].
     pub fn new(conf: Conf<'a>) -> Self {
@@ -76,6 +183,7 @@ impl<'a> VM<'a, Uninit> {
     }
 
     /// Initializes the J* runtime.
+    ///
     /// After calliing this method the returned [VM] will be capable of executing J* code.
     pub fn init_runtime(mut self) -> VM<'a, Init> {
         // SAFETY: `self.vm` is a valid pointer
@@ -88,8 +196,11 @@ impl<'a> VM<'a, Uninit> {
     }
 }
 
+/// Methods available only when the [`VM`] is in an [Init]ialized state, i.e. [`VM::init_runtime`]
+/// has been called.
 impl<'a> VM<'a, Init> {
     /// Construct a new [VM] wrapper starting from a raw [ffi::JStarVM] pointer.
+    ///
     /// Its main use is to construct a `VM` wrapper struct across ffi boundaries when only a
     /// `JStarVM` pointer is available (for example, in J* native functions).
     ///
@@ -107,29 +218,20 @@ impl<'a> VM<'a, Init> {
         }
     }
 
-    /// Evaluate J* source code
+    /// Evaluate J* source or compiled code in the context of the `__main__` module.
     ///
     /// # Arguments
     ///
-    /// * `path` - A string representing the source code path. It doesn't have to be a
-    /// real filesystem path, as it is only used during error callbacks to provide useful context
-    /// to the client handling the error. Nonetheless, if the source code has been indeed read from
-    /// a file, it is reccomended to pass its path to this function.
+    /// * `path` - A string representing the code path. It doesn't have to be a real filesystem
+    /// path, as it is only used during error callbacks to provide useful context to the client
+    /// handling the error. Nonetheless, if the source code has been indeed read from a file, it
+    /// is reccomended to pass its path to this function.
     ///
-    /// * `src` - The J* source code
-    pub fn eval_string(&self, path: &str, src: &str) -> Result<()> {
-        let path = CString::new(path).expect("Couldn't create CString");
-        let src = CString::new(src).expect("Couldn't create CString");
-        let res = unsafe { ffi::jsrEvalString(self.vm, path.as_ptr(), src.as_ptr()) };
-        if let Ok(err) = res.try_into() {
-            Err(err)
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Similar to [VM::eval_string] but takes in an arbitrary [u8] slice, so that it can also
-    /// avaluate compiled J* code.
+    /// * `code` - The J* source or compiled code to evaluate.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the evaluation succeded, `Err(`[`Error::Runtime`]`)` otherwise.
     pub fn eval(&self, path: &str, code: impl AsRef<[u8]>) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let code = code.as_ref();
@@ -148,6 +250,24 @@ impl<'a> VM<'a, Init> {
         }
     }
 
+    /// Similar to [VM::eval] but it evaluates the code in the context of `module` instead of the
+    /// main module.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - A string representing the code path. It doesn't have to be a real filesystem
+    /// path, as it is only used during error callbacks to provide useful context to the client
+    /// handling the error. Nonetheless, if the source code has been indeed read from a file, it
+    /// is reccomended to pass its path to this function.
+    ///
+    /// * `module` - The name of the module in which to evaluate the code. Can be any valid J*
+    ///    module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
+    ///
+    /// * `code` - The J* source or compiled code to evaluate.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the evaluation succeded, `Err(`[`Error::Runtime`]`)` otherwise.
     pub fn eval_in_module(&self, path: &str, module: &str, code: impl AsRef<[u8]>) -> Result<()> {
         let path = CString::new(path).expect("Couldn't create CString");
         let module = CString::new(module).expect("Couldn't create CString");
@@ -171,9 +291,14 @@ impl<'a> VM<'a, Init> {
     ///
     /// # Returns
     ///
-    /// Ok(()) if the call succeded leaving the result on top of the stack, Err([Error::Runtime]) if
-    /// the the call failed leaving an Exception on top of the stack.
-    /// In both cases, the args and the callee are popped from the stack.
+    /// `Ok(())` if the call succeded leaving the result on top of the stack, `Err(`[`Error::Runtime`]`)`
+    /// if the the call failed leaving an Exception on top of the stack. In both cases, the args
+    /// and the callee are popped from the stack.
+    ///
+    /// # Errors
+    ///
+    /// This function panics if the stack underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn call(&mut self, argc: u8) -> Result<()> {
         assert!(self.validate_slot(-(argc as i32 + 1)));
         // SAFETY: `self.vm` is a valid pointer
@@ -186,7 +311,11 @@ impl<'a> VM<'a, Init> {
     }
 
     /// Pops one element from the VM stack.
-    /// This method panics if we try to pop more items than the stack holds.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if we try to pop more items than the stack holds (for the current stack
+    /// frame).
     pub fn pop(&mut self) {
         assert!(self.validate_slot(-1), "VM stack underflow");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -194,7 +323,11 @@ impl<'a> VM<'a, Init> {
     }
 
     /// Pops `n` elements from the VM stack
-    /// This method panics if we try to pop more items than the stack holds.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if we try to pop more items than the stack holds (for the current stack
+    /// frame).
     pub fn pop_n(&mut self, n: i32) {
         assert!(n > 0, "`n` must be greater than 0");
         assert!(self.validate_slot(-n), "VM stack underflow");
@@ -203,8 +336,11 @@ impl<'a> VM<'a, Init> {
     }
 
     /// Push a `Number` onto the VM stack.
-    /// This method panics if there isn't enough stack space for one element.
-    /// Use [VM::ensure_stack] if you are not sure the stack has enough space.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if there isn't enough stack space for one element. Use
+    /// [VM::ensure_stack] if you are not sure the stack has enough space.
     pub fn push_number(&self, number: f64) {
         assert!(self.validate_stack(), "VM stack overflow");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -212,6 +348,11 @@ impl<'a> VM<'a, Init> {
     }
 
     /// Returns wether or not the value at `slot` is a `Number`.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn is_number(&self, slot: Index) -> bool {
         assert!(self.validate_slot(slot), "VM stack overflow");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -219,7 +360,15 @@ impl<'a> VM<'a, Init> {
     }
 
     /// Gets a J* `Number` from the stack.
-    /// If the value at `slot` is not a `Number`, returns `None`.
+    ///
+    /// # Returns
+    ///
+    /// `None` if the value at `slot` is not a `Number`, the `Number` as an [f64] otherwise.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn get_number(&self, slot: Index) -> Option<f64> {
         if !self.is_number(slot) {
             None
@@ -231,6 +380,16 @@ impl<'a> VM<'a, Init> {
 
     /// Gets a J* `Number` from the stack, checking that it is a `Number` and leaving a
     /// `TypeException` on the stack if it is not.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(`[`f64`]`)` if the value at `slot` is a `Number`, `Err(`[`Error::Runtime`]`)` otherwise,
+    /// leaving a `TypeException` on the stack.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn check_number(&self, slot: Index, name: &str) -> Result<f64> {
         assert!(self.validate_slot(slot), "VM stack overflow");
         let name = CString::new(name).expect("Error converting `name` to c-string");
@@ -241,18 +400,28 @@ impl<'a> VM<'a, Init> {
         }
     }
 
-    /// Push a `String` onto the VM stack.
+    /// Push a `String` onto the VM stack.  
+    ///
     /// Since a J* string can contain arbitrary bytes, this method accepts anything that can be
-    /// trated as a byte slice.
-    /// This method panics if there isn't enough stack space for one element.
-    /// Use [VM::ensure_stack] if you are not sure the stack has enough space.
+    /// treated as a byte slice. The data will be copied into a J* `String` before being pushed onto
+    /// the [VM] stack.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if there isn't enough stack space for one element. Use [VM::ensure_stack]
+    /// if you are not sure the stack has enough space.
     pub fn push_string(&self, str: impl AsRef<[u8]>) {
         let str = str.as_ref();
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrPushStringSz(self.vm, str.as_ptr() as *const c_char, str.len()) }
     }
 
-    /// Returns wether or not the value at `slot` is a `String`.
+    /// Returns wether or not the value at `slot` is a J* `String`.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn is_string(&self, slot: Index) -> bool {
         assert!(self.validate_slot(slot), "`slot` out of bounds");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -260,7 +429,15 @@ impl<'a> VM<'a, Init> {
     }
 
     /// Gets a J* `String` from the stack.
-    /// If the value at `slot` is not a `String`, returns `None`.
+    ///
+    /// # Returns
+    ///
+    /// `Some(`[JStarString]`)` if the value at `slot` is a `String`, `None` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn get_string(&self, slot: Index) -> Option<JStarString> {
         if !self.is_string(slot) {
             None
@@ -274,6 +451,16 @@ impl<'a> VM<'a, Init> {
 
     /// Gets a J* `String` from the stack, checking that it is a `String` and leaving a
     /// `TypeException` on top of the stack if it is not.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(`[`JStarString`]`)` if the value at `slot` is a `Number`.  
+    /// `Err(`[`Error::Runtime`]`)` otherwise, leaving a `TypeException` on the stack.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows or overflows the stack (for the current stack
+    /// frame).
     pub fn check_string(&self, slot: Index, name: &str) -> Result<JStarString> {
         assert!(self.validate_slot(slot), "VM stack overflow");
         let name = CString::new(name).expect("Error converting `name` to c-string");
@@ -290,8 +477,8 @@ impl<'a> VM<'a, Init> {
     ///
     /// # Returns
     ///
-    /// `Ok(())` in case of success leaving the value on top of the stack.
-    /// [Err(Error::Runtime)] in case of failure leaving an exception on top of the stack.
+    /// `Ok(())` in case of success leaving the value on top of the stack.  
+    /// `Err(`[`Error::Runtime`]`)` in case of failure leaving an exception on top of the stack.
     pub fn get_global(&self, module_name: &str, name: &str) -> Result<()> {
         // TODO: check that `module_name` exists. New J* apis should be added for this.
         assert!(self.validate_stack());
@@ -312,13 +499,14 @@ impl<'a> VM<'a, Init> {
     /// # Arguments
     ///
     /// * `module_name` - The name of the module in which to set the global. Could be any valid J*
-    ///    module name or `CORE_MODULE`/`MAIN_MODULE` for the two build-in modules.
+    ///    module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
+    ///    for the two built-in modules.
     /// * `name` - The name of the global variable to set.
     ///
     /// # Returns
     ///
     /// `Ok(())` on success, leaving the value on top of the stack.
-    /// [Err(Error::Runtime)] in case of failure, leaving an exception on top of the stack.
+    /// `Err(`[`Error::Runtime`]`)` in case of failure, leaving an exception on top of the stack.
     pub fn set_global(&self, module_name: &str, name: &str) -> Result<()> {
         // TODO: check that `module_name` exists. New J* apis should be added for this.
         assert!(self.validate_slot(-1));
@@ -334,7 +522,7 @@ impl<'a> VM<'a, Init> {
 
     /// Pushes a naive function onto the stack.
     ///
-    /// See [crate::native] for utility functions and macros to create natives.
+    /// See [crate::native!] for utility functions and macros to create natives.
     ///
     /// # Arguments
     ///
@@ -346,7 +534,7 @@ impl<'a> VM<'a, Init> {
     /// # Returns
     ///
     /// `Ok(())` on success, leaving the native function on top of the stack.
-    /// [Err(Error::Runtime)] in case of failure, leaving an exception on top of the stack.
+    /// `Err(`[`Error::Runtime`]`)` in case of failure, leaving an exception on top of the stack.
     pub fn push_native(
         &self,
         module: &str,
@@ -367,10 +555,16 @@ impl<'a> VM<'a, Init> {
 
     /// Registers a native function in the global scope of module `module`.
     ///
-    /// This is a convenience method that is equivalent to doing:
-    /// ```ignore
-    /// vm.push_native(module, "func_name", func, argc);
-    /// vm.set_global(module, "func_name");
+    /// This is a convenience method that is mostly equivalent to doing:
+    /// ```rust
+    /// # use jstar::{vm::VM, conf::Conf, native};
+    /// # let mut vm = VM::new(Conf::new()).init_runtime();
+    /// # let module = "module";
+    /// # let name = "func_name";
+    /// # let argc = 0;
+    /// # native!(fn func(vm) { Ok(()) });
+    /// vm.push_native(module, name, func, argc);
+    /// vm.set_global(module, name);
     /// vm.pop();
     /// ```
     ///
@@ -384,7 +578,7 @@ impl<'a> VM<'a, Init> {
     /// # Returns
     ///
     /// `Ok(())` on success.
-    /// [Err(Error::Runtime)] in case of failure, leaving an exception on top of the stack.
+    /// `Err(`[`Error::Runtime`]`)` in case of failure, leaving an exception on top of the stack.
     pub fn register_native(
         &self,
         module: &str,
@@ -400,7 +594,7 @@ impl<'a> VM<'a, Init> {
         Ok(())
     }
 
-    /// Returns a [StackRef] pointing to the topmost stack slot.
+    /// Returns a [`StackRef`] pointing to the topmost stack slot.
     pub fn get_top(&self) -> StackRef {
         StackRef {
             // SAFETY: `self.vm` is a valid J* vm pointer
@@ -409,9 +603,12 @@ impl<'a> VM<'a, Init> {
         }
     }
 
-    /// Returns a [StackRef] pointing to the stack slot at `slot`.
+    /// Returns a [`StackRef`] pointing to the stack slot at `slot`.
     /// `slot` is treated as an offset from the top of the stack and must be positive.
-    /// This method panics if `slot` is out of bounds.
+    ///
+    /// # Errors
+    ///
+    /// This method panics if the slot underflows the stack (for the current stack frame).
     pub fn peek_top(&self, slot: Index) -> StackRef {
         assert!(slot > 0, "`slot` must be positive");
         // SAFETY: `self.vm` is a valid J* vm pointer
@@ -425,26 +622,30 @@ impl<'a> VM<'a, Init> {
 
     /// Ensure that the vm's stack can hold at least `needed` items, reallocating the stack
     /// to add more space if needed.
+    ///
+    /// See [`native::MIN_NATIVE_STACK_SZ`](../native/constant.MIN_NATIVE_STACK_SZ.html) for the
+    /// minimum guaranteed stack size when calling a J* native function.
     pub fn ensure_stack(&self, needed: usize) {
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrEnsureStack(self.vm, needed) };
     }
 
-    /// Returns `true` if the provided slot is valid, i.e. it doesn't overflow or underflow the native
+    /// Returns `true` if the provided slot is valid, i.e. it doesn't overflow or underflow the
     /// stack, false otherwise
     pub fn validate_slot(&self, slot: Index) -> bool {
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrValidateSlot(self.vm, slot) }
     }
 
-    /// Returns `true` if the stack has space for one element, i.e. pushing one element will not overflow
-    /// the native stack
+    /// Returns `true` if the stack has space for one element, i.e. pushing one element will not
+    /// overflow the stack
     pub fn validate_stack(&self) -> bool {
         // SAFETY: `self.vm` is a valid J* vm pointer
         unsafe { ffi::jsrValidateStack(self.vm) }
     }
 }
 
+/// Methods available to both [Init] and [Uninit] VMs.
 impl<'a, State> VM<'a, State> {
     /// Compiles J* source code into bytecode.
     ///
@@ -457,11 +658,11 @@ impl<'a, State> VM<'a, State> {
     /// error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
     /// to pass its path to this function.
     ///
-    /// * `out` - A [Write] implementor to write the compiled bytecode to
+    /// * `out` - A [`Write`] implementor to write the compiled bytecode to
     ///
     /// # Returns
     ///
-    /// Ok(()) if the compilation succeded, Err([Error]) otherwise.
+    /// `Ok(())` if the compilation succeded, `Err(`[`Error`]`)` otherwise.
     pub fn compile(&self, path: &str, src: &str, mut out: impl Write) -> Result<()> {
         let path = CString::new(path).expect("`path` to not contain NUL characters");
         let src = CString::new(src).expect("`src` to not contain NUL characters");
@@ -508,7 +709,7 @@ impl<'a, State> VM<'a, State> {
     /// * `src` - The J* source code to compile
     ///
     /// # Returns
-    /// Ok([`Vec<u8>`]) if the compilation succeded, Err([Error]) otherwise.
+    /// `Ok(`[`Vec<u8>`]`)` if the compilation succeded, `Err(`[`Error`]`)` otherwise.
     pub fn compile_in_memory(&self, path: &str, src: &str) -> Result<Vec<u8>> {
         let mut out = Vec::new();
         self.compile(path, src, &mut out)?;
@@ -647,10 +848,9 @@ mod test {
     use crate::{convert::ToJStar, native, CORE_MODULE, MAIN_MODULE};
 
     #[test]
-    fn eval_string() {
+    fn eval() {
         let vm = VM::new(Conf::new()).init_runtime();
-        vm.eval_string("<string>", "print('Hello, World!')")
-            .unwrap();
+        vm.eval("<string>", "print('Hello, World!')").unwrap();
     }
 
     #[test]
@@ -665,11 +865,41 @@ mod test {
     }
 
     #[test]
+    fn eval_in_module() {
+        let mut vm = VM::new(Conf::new()).init_runtime();
+        vm.eval_in_module("<string>", "test", "var x = 42").unwrap();
+
+        vm.get_global("test", "x").unwrap();
+        assert!(i32::from_jstar(&vm, -1).unwrap() == 42);
+        vm.pop();
+
+        let res = vm.get_global(MAIN_MODULE, "x");
+        assert!(matches!(res, Err(Error::Runtime)));
+        vm.pop();
+    }
+
+    #[test]
+    fn eval_in_module_bin() {
+        let mut vm = VM::new(Conf::new()).init_runtime();
+
+        let code = vm.compile_in_memory("<test>", "var x = 42").unwrap();
+        vm.eval_in_module("<string>", "test", code).unwrap();
+
+        vm.get_global("test", "x").unwrap();
+        assert!(i32::from_jstar(&vm, -1).unwrap() == 42);
+        vm.pop();
+
+        let res = vm.get_global(MAIN_MODULE, "x");
+        assert!(matches!(res, Err(Error::Runtime)));
+        vm.pop();
+    }
+
+    #[test]
     fn call() -> Result<()> {
         let vm = VM::new(Conf::new());
         let mut vm = vm.init_runtime();
 
-        vm.eval_string("<string>", "var add = |a, b| => a + b")?;
+        vm.eval("<string>", "var add = |a, b| => a + b")?;
         vm.get_global(MAIN_MODULE, "add")?;
 
         3.to_jstar(&vm);
@@ -686,18 +916,16 @@ mod test {
     #[test]
     #[should_panic]
     fn call_panic() {
-        let vm = VM::new(Conf::new());
-        let mut vm = vm.init_runtime();
+        let mut vm = VM::new(Conf::new()).init_runtime();
         vm.get_global(CORE_MODULE, "print").unwrap();
         vm.call(2).unwrap();
     }
 
     #[test]
     fn get_global() {
-        let vm = VM::new(Conf::new());
-        let mut vm = vm.init_runtime();
+        let mut vm = VM::new(Conf::new()).init_runtime();
 
-        vm.eval_string("<string>", "var test = 'test'").unwrap();
+        vm.eval("<string>", "var test = 'test'").unwrap();
         vm.get_global(MAIN_MODULE, "test").unwrap();
         let s = JStarString::from_jstar(&vm, -1).unwrap();
         assert_eq!(s, "test");
@@ -708,7 +936,7 @@ mod test {
     #[test]
     fn get_global_fail() {
         let vm = VM::new(Conf::new()).init_runtime();
-        vm.eval_string("<string>", "var test = 'test'").unwrap();
+        vm.eval("<string>", "var test = 'test'").unwrap();
         let res = vm.get_global(MAIN_MODULE, "doesnotexist").unwrap_err();
         assert!(matches!(res, Error::Runtime));
     }
@@ -725,20 +953,18 @@ mod test {
         let vm = VM::new(Conf::new());
         let mut vm = vm.init_runtime();
 
-        vm.eval_string("<setglb>", "var test = 'test'").unwrap();
+        vm.eval("<setglb>", "var test = 'test'").unwrap();
 
         42.to_jstar(&vm);
         vm.set_global(MAIN_MODULE, "test").unwrap();
         vm.pop();
 
-        vm.eval_string("<setglb>", "std.assert(test == 42)")
-            .unwrap();
+        vm.eval("<setglb>", "std.assert(test == 42)").unwrap();
     }
 
     #[test]
     fn set_global_fail() {
-        let vm = VM::new(Conf::new());
-        let mut vm = vm.init_runtime();
+        let mut vm = VM::new(Conf::new()).init_runtime();
 
         42.to_jstar(&vm);
         let res = vm.set_global("does_not_exist", "test");
@@ -761,8 +987,7 @@ mod test {
         vm.set_global(MAIN_MODULE, "id").unwrap();
         vm.pop();
 
-        vm.eval_string("<string>", "std.assert(id(42) == 42)")
-            .unwrap();
+        vm.eval("<string>", "std.assert(id(42) == 42)").unwrap();
     }
 
     #[test]
@@ -791,8 +1016,7 @@ mod test {
 
         vm.register_native(MAIN_MODULE, "id", id, 1).unwrap();
 
-        vm.eval_string("<string>", "std.assert(id(42) == 42)")
-            .unwrap();
+        vm.eval("<string>", "std.assert(id(42) == 42)").unwrap();
     }
 
     #[test]
@@ -810,6 +1034,50 @@ mod test {
     }
 
     #[test]
+    fn native_call_fail() {
+        let mut vm = VM::new(Conf::new()).init_runtime();
+
+        native!(fn id(vm) {
+            let n = i32::from_jstar_checked(vm, 1, "n")?;
+            n.to_jstar(vm);
+            Ok(())
+        });
+
+        vm.register_native(MAIN_MODULE, "id", id, 1).unwrap();
+
+        vm.get_global(MAIN_MODULE, "id").unwrap();
+        "not a number".to_jstar(&vm);
+
+        let res = vm.call(1);
+        assert!(matches!(res, Err(Error::Runtime)));
+
+        vm.pop();
+
+        vm.get_global(MAIN_MODULE, "id").unwrap();
+        42.to_jstar(&vm);
+        34.to_jstar(&vm);
+
+        let res = vm.call(2);
+        assert!(matches!(res, Err(Error::Runtime)));
+    }
+
+    #[test]
+    #[should_panic]
+    fn native_should_panic() {
+        let mut vm = VM::new(Conf::new()).init_runtime();
+
+        native!(fn id(vm) {
+            // Try to pop past stack frame boundary
+            vm.pop_n(2);
+            Ok(())
+        });
+
+        vm.register_native(MAIN_MODULE, "id", id, 0).unwrap();
+        vm.get_global(MAIN_MODULE, "id").unwrap();
+        vm.call(0).unwrap();
+    }
+
+    #[test]
     fn error_callback() {
         let mut num_errors = 0;
         let conf = Conf::new().error_callback(Box::new(|_, _, _, _| {
@@ -818,18 +1086,16 @@ mod test {
 
         let vm = VM::new(conf).init_runtime();
 
-        let err = vm.eval_string("<string>", "raise Exception()").unwrap_err();
+        let err = vm.eval("<string>", "raise Exception()").unwrap_err();
         assert!(matches!(err, Error::Runtime));
 
-        let err = vm.eval_string("<string>", "for end").unwrap_err();
+        let err = vm.eval("<string>", "for end").unwrap_err();
         assert!(matches!(err, Error::Syntax));
 
-        let err = vm
-            .eval_string("<string>", "begin var a; var a; end")
-            .unwrap_err();
+        let err = vm.eval("<string>", "begin var a; var a; end").unwrap_err();
         assert!(matches!(err, Error::Compile));
 
-        vm.eval_string("<string>", "var bar = 1 + 2").unwrap();
+        vm.eval("<string>", "var bar = 1 + 2").unwrap();
 
         drop(vm);
 
@@ -851,16 +1117,14 @@ mod test {
 
         let vm = VM::new(conf).init_runtime();
 
-        vm.eval_string(
+        vm.eval(
             "<string>",
             "import test
             std.assert(test.flag == 1)",
         )
         .unwrap();
 
-        let err = vm
-            .eval_string("<string>", "import does_not_exist")
-            .unwrap_err();
+        let err = vm.eval("<string>", "import does_not_exist").unwrap_err();
         assert!(matches!(err, Error::Runtime));
     }
 
@@ -889,16 +1153,14 @@ mod test {
 
         let vm = VM::new(conf).init_runtime();
 
-        vm.eval_string(
+        vm.eval(
             "<string>",
             "import test
             std.assert(test.flag == 1)",
         )
         .unwrap();
 
-        let err = vm
-            .eval_string("<string>", "import does_not_exist")
-            .unwrap_err();
+        let err = vm.eval("<string>", "import does_not_exist").unwrap_err();
         assert!(matches!(err, Error::Runtime));
 
         drop(vm);
