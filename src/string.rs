@@ -31,7 +31,7 @@ use std::{ffi::c_char, hash::Hash, marker::PhantomData};
 /// ```
 ///
 /// To allieviate this requirement, you can always clone the string to an owned [std::string::String]
-/// or a [Vec<u8>], either by converting a reference to an owned type or by using the provided [From]
+/// or a [`Vec<u8>`], either by converting a reference to an owned type or by using the provided [From]
 /// and [TryFrom] implementations:
 /// ```rust
 /// # use jstar::{conf::Conf, string::String, vm::VM, convert::{ToJStar, FromJStar}};
