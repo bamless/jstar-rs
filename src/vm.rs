@@ -119,7 +119,7 @@ pub struct Init;
 /// #     native,
 /// # };
 /// let vm = VM::new(Conf::new()).init_runtime();
-/// 
+///
 /// native!(fn rustAdd(vm) {
 ///     // First argument
 ///     let a = i32::from_jstar_checked(vm, 1, "a")?;
@@ -1140,15 +1140,16 @@ mod test {
                 err_called = true;
             }))
             .import_callback(Box::new(|vm, module_name| {
-            if module_name == "test" {
-                Some(Module::binary(
-                    vm.compile_in_memory("<test>", "var flag = 1").unwrap(),
-                    "<test>".to_owned(),
-                ))
-            } else {
-                None
+                if module_name == "test" {
+                    Some(Module::binary(
+                        vm.compile_in_memory("<test>", "var flag = 1").unwrap(),
+                        "<test>".to_owned(),
+                    ))
+                } else {
+                    None
+                }
             }
-        }));
+        ));
 
         let vm = VM::new(conf).init_runtime();
 
@@ -1165,6 +1166,27 @@ mod test {
         drop(vm);
 
         assert!(err_called);
+    }
+
+    #[test]
+    #[should_panic]
+    fn import_stack_underflow_panic() {
+        // This should panic, as we're popping past the stack frame boundary
+        // This should mantain the invariant that `string_ref` must remain valid and not dangle
+        // by being popped off the stack (as will happen if the code below is permitted)
+        let conf = Conf::new().import_callback(Box::new(|vm, _| {
+            vm.pop();
+            vm.pop();
+            None
+        }));
+
+        let vm = VM::new(conf).init_runtime();
+        "string".to_jstar(&vm);
+
+        let string_ref = JStarString::from_jstar(&vm, -1).unwrap();
+        let _ = vm.eval("<string>", "import test");
+
+        assert_eq!(string_ref, "string");
     }
 
     #[test]
