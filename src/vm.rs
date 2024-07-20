@@ -71,7 +71,7 @@ pub struct Init;
 /// #     conf::Conf,
 /// #     vm::VM,
 /// #     convert::ToJStar,
-/// #     string::String as JStarString,
+/// #     string::String,
 /// #     convert::FromJStar,
 /// #     MAIN_MODULE
 /// # };
@@ -91,7 +91,7 @@ pub struct Init;
 /// "[wW]orld!?".to_jstar(&vm);
 /// vm.call(2).expect("`call` to succeed");
 ///
-/// let re_match = JStarString::from_jstar(&vm, -1).expect("`get_string` to succeed");
+/// let re_match = String::from_jstar(&vm, -1).expect("`get_string` to succeed");
 /// assert_eq!(re_match, "World!");
 ///
 /// // We are done with the result, pop it from the stack
@@ -114,7 +114,6 @@ pub struct Init;
 /// #     conf::Conf,
 /// #     vm::VM,
 /// #     convert::ToJStar,
-/// #     string::String as JStarString,
 /// #     convert::FromJStar,
 /// #     MAIN_MODULE,
 /// #     native,
