@@ -222,9 +222,9 @@ impl<'a> VM<'a, Init> {
     /// # Arguments
     ///
     /// * `path` - A string representing the code path. It doesn't have to be a real filesystem
-    /// path, as it is only used during error callbacks to provide useful context to the client
-    /// handling the error. Nonetheless, if the source code has been indeed read from a file, it
-    /// is reccomended to pass its path to this function.
+    ///    path, as it is only used during error callbacks to provide useful context to the client
+    ///    handling the error. Nonetheless, if the source code has been indeed read from a file, it
+    ///    is reccomended to pass its path to this function.
     ///
     /// * `code` - The J* source or compiled code to evaluate.
     ///
@@ -255,9 +255,9 @@ impl<'a> VM<'a, Init> {
     /// # Arguments
     ///
     /// * `path` - A string representing the code path. It doesn't have to be a real filesystem
-    /// path, as it is only used during error callbacks to provide useful context to the client
-    /// handling the error. Nonetheless, if the source code has been indeed read from a file, it
-    /// is reccomended to pass its path to this function.
+    ///    path, as it is only used during error callbacks to provide useful context to the client
+    ///    handling the error. Nonetheless, if the source code has been indeed read from a file, it
+    ///    is reccomended to pass its path to this function.
     ///
     /// * `module` - The name of the module in which to evaluate the code. Can be any valid J*
     ///    module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
@@ -653,9 +653,9 @@ impl<'a, State> VM<'a, State> {
     /// * `src` - The J* source code to compile
     ///
     /// * `path` - The path of the source code. It doesn't have to be a real filesystem path, as it
-    /// is only used during error callbacks to provide useful context to the client handling the
-    /// error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
-    /// to pass its path to this function.
+    ///    is only used during error callbacks to provide useful context to the client handling the
+    ///    error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
+    ///    to pass its path to this function.
     ///
     /// * `out` - A [`Write`] implementor to write the compiled bytecode to
     ///
@@ -701,9 +701,9 @@ impl<'a, State> VM<'a, State> {
     /// # arguments
     ///
     /// * `path` - The path of the source code. It doesn't have to be a real filesystem path, as it
-    /// is only used during error callbacks to provide useful context to the client handling the
-    /// error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
-    /// to pass its path to this function.
+    ///    is only used during error callbacks to provide useful context to the client handling the
+    ///    error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
+    ///    to pass its path to this function.
     ///
     /// * `src` - The J* source code to compile
     ///
