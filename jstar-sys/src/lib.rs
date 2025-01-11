@@ -170,6 +170,13 @@ extern "C" {
     pub fn jsrGetStringSz(vm: *mut JStarVM, slot: c_int) -> usize;
     pub fn jsrGetString(vm: *mut JStarVM, slot: c_int) -> *const c_char;
 }
+// -----------------------------------------------------------------------------
+// EXCEPTION API
+// -----------------------------------------------------------------------------
+
+extern "C" {
+    pub fn jsrRaise(vm: *mut JStarVM, cls: *const c_char, err: *const c_char, ...);
+}
 
 // -----------------------------------------------------------------------------
 // MODULE API

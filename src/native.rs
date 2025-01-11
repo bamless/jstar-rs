@@ -49,3 +49,15 @@ macro_rules! native {
         }
     };
 }
+
+/// Macro to raise an exception in a native function and return an error.
+///
+/// This macro is useful when you want to raise an exception in a native function and return an
+/// error. It takes in a `&mut `[`crate::vm::VM`], a class name and a message.
+#[macro_export]
+macro_rules! raise {
+    ($vm:expr, $cls:expr, $msg:expr) => {
+        $vm.raise($cls, $msg);
+        return Err($crate::error::Error::Runtime)
+    };
+}
