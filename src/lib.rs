@@ -1,12 +1,27 @@
 #![warn(clippy::unwrap_used)]
 
+/// FFI bindings to the J* C API.
 pub use jstar_sys as ffi;
+
+/// Configuration options for the J* VM.
 pub mod conf;
+
+/// Convert Rust types to J* values and back.
 pub mod convert;
+
+/// J* Error type.
 pub mod error;
+
+/// Types and utilities for working with the J* import system.
 pub mod import;
+
+/// Macros for defining native functions.
 pub mod native;
+
+/// The J* String type.
 pub mod string;
+
+/// Methods and types for interacting with the J* VM. This is the main entry point for the library.
 pub mod vm;
 
 use ffi::{JSR_CORE_MODULE, JSR_MAIN_MODULE};
