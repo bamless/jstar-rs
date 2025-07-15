@@ -55,7 +55,7 @@ pub struct String<'vm> {
     phantom: PhantomData<&'vm VM<'vm>>,
 }
 
-impl<'vm> String<'vm> {
+impl String<'_> {
     /// Construct a new [String] starting from a pointer and a length to a J* `String`.
     pub(crate) fn new(data: *const c_char, len: usize) -> Self {
         String {
@@ -96,7 +96,7 @@ impl ToJStar for &[u8] {
     }
 }
 
-impl<'vm> ToJStar for String<'vm> {
+impl ToJStar for String<'_> {
     /// Pushes this J* [String] onto the stack.  
     /// As the `String` is already owned by the VM, this method can skip a roundtrip through the
     /// J* stack and Rust, and directly push onto the J* stack, without copying the data.
@@ -107,8 +107,8 @@ impl<'vm> ToJStar for String<'vm> {
     }
 }
 
-impl<'vm> ToJStar for &String<'vm> {
-    /// See [impl<'vm> ToJStar for String<'vm>](./struct.String.html#impl-ToJStar-for-String<'vm>)
+impl ToJStar for &String<'_> {
+    /// See [impl ToJStar for String<'_>](./struct.String.html#impl-ToJStar-for-String<'_>)
     fn to_jstar(&self, vm: &VM) {
         (*self).to_jstar(vm);
     }
@@ -124,19 +124,19 @@ impl<'vm> FromJStar<'vm> for String<'vm> {
     }
 }
 
-impl<'vm> AsRef<[u8]> for String<'vm> {
+impl AsRef<[u8]> for String<'_> {
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl<'vm, T: AsRef<[u8]>> PartialEq<T> for String<'vm> {
+impl<T: AsRef<[u8]>> PartialEq<T> for String<'_> {
     fn eq(&self, other: &T) -> bool {
         self.as_bytes() == other.as_ref()
     }
 }
 
-impl<'vm> Hash for String<'vm> {
+impl Hash for String<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_bytes().hash(state)
     }

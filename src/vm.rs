@@ -145,7 +145,7 @@ pub struct VM<'a, State = Init> {
     state: PhantomData<State>,
 }
 
-impl<'a, State> Drop for VM<'a, State> {
+impl<State> Drop for VM<'_, State> {
     fn drop(&mut self) {
         if let VMOwnership::Owned(_trampolines) = &self.ownership {
             unsafe { ffi::jsrFreeVM(self.vm) };
@@ -197,7 +197,7 @@ impl<'a> VM<'a, Uninit> {
 
 /// Methods available only when the [`VM`] is in an [Init]ialized state, i.e. [`VM::init_runtime`]
 /// has been called.
-impl<'a> VM<'a, Init> {
+impl VM<'_, Init> {
     /// Construct a new [VM] wrapper starting from a raw [ffi::JStarVM] pointer.
     ///
     /// Its main use is to construct a `VM` wrapper struct across ffi boundaries when only a
@@ -222,9 +222,9 @@ impl<'a> VM<'a, Init> {
     /// # Arguments
     ///
     /// * `path` - A string representing the code path. It doesn't have to be a real filesystem
-    ///    path, as it is only used during error callbacks to provide useful context to the client
-    ///    handling the error. Nonetheless, if the source code has been indeed read from a file, it
-    ///    is reccomended to pass its path to this function.
+    ///   path, as it is only used during error callbacks to provide useful context to the client
+    ///   handling the error. Nonetheless, if the source code has been indeed read from a file, it
+    ///   is reccomended to pass its path to this function.
     ///
     /// * `code` - The J* source or compiled code to evaluate.
     ///
@@ -255,12 +255,12 @@ impl<'a> VM<'a, Init> {
     /// # Arguments
     ///
     /// * `path` - A string representing the code path. It doesn't have to be a real filesystem
-    ///    path, as it is only used during error callbacks to provide useful context to the client
-    ///    handling the error. Nonetheless, if the source code has been indeed read from a file, it
-    ///    is reccomended to pass its path to this function.
+    ///   path, as it is only used during error callbacks to provide useful context to the client
+    ///   handling the error. Nonetheless, if the source code has been indeed read from a file, it
+    ///   is reccomended to pass its path to this function.
     ///
     /// * `module` - The name of the module in which to evaluate the code. Can be any valid J*
-    ///    module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
+    ///   module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
     ///
     /// * `code` - The J* source or compiled code to evaluate.
     ///
@@ -498,9 +498,9 @@ impl<'a> VM<'a, Init> {
     /// # Arguments
     ///
     /// * `module_name` - The name of the module in which to set the global. Could be any valid J*
-    ///    module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
-    ///    for the two built-in modules.
-    /// * `name` - The name of the global variable to set.
+    ///   module name or [CORE_MODULE](../constant.CORE_MODULE.html)/[MAIN_MODULE](../constant.MAIN_MODULE.html)
+    ///   for the two built-in modules.
+    ///   `name` - The name of the global variable to set.
     ///
     /// # Returns
     ///
@@ -655,7 +655,7 @@ impl<'a> VM<'a, Init> {
 }
 
 /// Methods available to both [Init] and [Uninit] VMs.
-impl<'a, State> VM<'a, State> {
+impl<State> VM<'_, State> {
     /// Compiles J* source code into bytecode.
     ///
     /// # Arguments
@@ -663,9 +663,9 @@ impl<'a, State> VM<'a, State> {
     /// * `src` - The J* source code to compile
     ///
     /// * `path` - The path of the source code. It doesn't have to be a real filesystem path, as it
-    ///    is only used during error callbacks to provide useful context to the client handling the
-    ///    error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
-    ///    to pass its path to this function.
+    ///   is only used during error callbacks to provide useful context to the client handling the
+    ///   error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
+    ///   to pass its path to this function.
     ///
     /// * `out` - A [`Write`] implementor to write the compiled bytecode to
     ///
@@ -711,9 +711,9 @@ impl<'a, State> VM<'a, State> {
     /// # arguments
     ///
     /// * `path` - The path of the source code. It doesn't have to be a real filesystem path, as it
-    ///    is only used during error callbacks to provide useful context to the client handling the
-    ///    error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
-    ///    to pass its path to this function.
+    ///   is only used during error callbacks to provide useful context to the client handling the
+    ///   error. Nonetheless, if the source code has been indeed read from a file, it is reccomended
+    ///   to pass its path to this function.
     ///
     /// * `src` - The J* source code to compile
     ///
@@ -744,7 +744,7 @@ impl<'vm> StackRef<'vm> {
     }
 }
 
-unsafe impl<'a, State> Send for VM<'a, State> {}
+unsafe impl<State> Send for VM<'_, State> {}
 
 /// Enum that serves the purpose of tracking the ownership of a pointer to an [ffi::JStarVM].
 /// Since we need the ability to construct a new rust wrapper around a `*mut JStarVM` when it is
