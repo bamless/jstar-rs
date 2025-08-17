@@ -1,3 +1,5 @@
+use jstar_sys::JStarRealloc;
+
 use crate::{error::Error, ffi, import::Module, vm::VM};
 
 /// Callback invoked by the J* vm when there is an error to report
@@ -23,6 +25,20 @@ pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>
 /// `Some(Module)` if the module was found, `None` otherwise.
 pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
 
+/// Callback invoked by the J* vm to allocate memory
+///
+/// # Arguments
+///
+/// * `ptr`    - The pointer to reallocate. Can be `null` or a previously allocated pointer.
+/// * `old_sz` - The old size in bytes of allocated memory. Can be 0 in case `ptr` is `null`.
+///   code
+/// * `new_sz` - The new size to allocate, in bytes
+///
+/// # Returns
+///
+/// The newly allocated memory
+pub type ReallocCallback = JStarRealloc; // TODO: integrate with rust allocators when it comes out of nightly?
+
 /// Struct containing a set of configurations for the J* vm.
 pub struct Conf<'a> {
     /// The initial stack size of the vm (in bytes)
@@ -35,6 +51,8 @@ pub struct Conf<'a> {
     pub error_callback: Option<ErrorCallback<'a>>,
     /// Function called to resolve a module
     pub import_callback: Option<ImportCallback<'a>>,
+    /// Function called to (re)allocate memory
+    pub realloc: Option<ReallocCallback>,
 }
 
 impl<'a> Conf<'a> {
@@ -47,6 +65,7 @@ impl<'a> Conf<'a> {
             heap_grow_rate: jstar_conf.heap_grow_rate,
             error_callback: None,
             import_callback: None,
+            realloc: None,
         }
     }
 

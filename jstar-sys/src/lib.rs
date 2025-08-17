@@ -1,10 +1,11 @@
 use std::ffi::{self, c_void};
 use std::os::raw::{c_char, c_int};
-use std::usize;
 
 pub enum JStarVM {}
 
 pub type JStarNative = extern "C" fn(*mut JStarVM) -> bool;
+
+pub type JStarRealloc = extern "C" fn(*mut (), old_sz: usize, new_sz: usize) -> *mut ();
 
 #[repr(C)]
 pub enum JStarResult {
@@ -71,6 +72,7 @@ pub struct JStarConf {
     pub heap_grow_rate: c_int,
     pub error_callback: JStarErrorCB,
     pub import_callback: JStarImportCB,
+    pub realloc: JStarRealloc,
     pub custom_data: *mut ffi::c_void,
 }
 

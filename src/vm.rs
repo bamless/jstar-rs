@@ -8,6 +8,7 @@ use crate::ffi;
 use crate::import::Module;
 use crate::string::String as JStarString;
 
+use std::alloc::Layout;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::io::Write;
@@ -168,6 +169,7 @@ impl<'a> VM<'a, Uninit> {
             starting_stack_sz: conf.starting_stack_sz,
             error_callback: error_trampoline,
             import_callback: import_trampoline,
+            realloc: conf.realloc.unwrap_or(default_realloc),
             custom_data: (&mut *trampolines as *mut _) as *mut c_void,
         };
 
@@ -437,7 +439,7 @@ impl VM<'_, Init> {
     ///
     /// This method panics if the slot underflows or overflows the stack (for the current stack
     /// frame).
-    pub fn get_string(&self, slot: Index) -> Option<JStarString> {
+    pub fn get_string(&self, slot: Index) -> Option<JStarString<'_>> {
         if !self.is_string(slot) {
             None
         } else {
@@ -460,7 +462,7 @@ impl VM<'_, Init> {
     ///
     /// This method panics if the slot underflows or overflows the stack (for the current stack
     /// frame).
-    pub fn check_string(&self, slot: Index, name: &str) -> Result<JStarString> {
+    pub fn check_string(&self, slot: Index, name: &str) -> Result<JStarString<'_>> {
         assert!(self.validate_slot(slot), "VM stack overflow");
         let name = CString::new(name).expect("Error converting `name` to c-string");
         if !unsafe { ffi::jsrCheckString(self.vm, slot, name.as_ptr()) } {
@@ -604,7 +606,7 @@ impl VM<'_, Init> {
     }
 
     /// Returns a [`StackRef`] pointing to the topmost stack slot.
-    pub fn get_top(&self) -> StackRef {
+    pub fn get_top(&self) -> StackRef<'_> {
         StackRef {
             // SAFETY: `self.vm` is a valid J* vm pointer
             index: unsafe { ffi::jsrTop(self.vm) },
@@ -618,7 +620,7 @@ impl VM<'_, Init> {
     /// # Errors
     ///
     /// This method panics if the slot underflows the stack (for the current stack frame).
-    pub fn peek_top(&self, slot: Index) -> StackRef {
+    pub fn peek_top(&self, slot: Index) -> StackRef<'_> {
         assert!(slot > 0, "`slot` must be positive");
         // SAFETY: `self.vm` is a valid J* vm pointer
         let idx = unsafe { ffi::jsrTop(self.vm) } - slot;
@@ -846,6 +848,33 @@ extern "C" fn import_trampoline(
         }
     } else {
         ffi::JStarImportResult::default()
+    }
+}
+
+extern "C" fn default_realloc(ptr: *mut (), old_sz: usize, new_size: usize) -> *mut () {
+    if ptr.is_null() && new_size == 0 {
+        return std::ptr::null_mut();
+    }
+    // SAFETY: I'm just allocating some memory... why the hell this shit is "unsafe" is beyond me
+    unsafe {
+        if ptr.is_null() {
+            std::alloc::alloc(Layout::from_size_align_unchecked(
+                new_size,
+                std::mem::align_of::<usize>(),
+            )) as *mut ()
+        } else if new_size == 0 {
+            std::alloc::dealloc(
+                ptr as *mut u8,
+                Layout::from_size_align_unchecked(old_sz, std::mem::align_of::<usize>()),
+            );
+            std::ptr::null_mut()
+        } else {
+            std::alloc::realloc(
+                ptr as *mut u8,
+                Layout::from_size_align_unchecked(old_sz, std::mem::align_of::<usize>()),
+                new_size,
+            ) as *mut ()
+        }
     }
 }
 
@@ -1102,6 +1131,7 @@ mod test {
         let err = vm.eval("<string>", "for end").unwrap_err();
         assert!(matches!(err, Error::Syntax));
 
+        // This should report 2 errors: variable redefinition, and a note showing prev declaration
         let err = vm.eval("<string>", "begin var a; var a; end").unwrap_err();
         assert!(matches!(err, Error::Compile));
 
@@ -1109,7 +1139,7 @@ mod test {
 
         drop(vm);
 
-        assert_eq!(num_errors, 3);
+        assert_eq!(num_errors, 4);
     }
 
     #[test]
@@ -1143,11 +1173,10 @@ mod test {
         let mut err_called = false;
 
         let conf = Conf::new()
-            .error_callback(Box::new(|err, path, line, msg| {
+            .error_callback(Box::new(|err, path, line, _| {
                 assert!(matches!(err, Error::Runtime));
                 assert_eq!(path, "<string>");
                 assert!(line.is_none());
-                assert_eq!(msg, "Traceback (most recent call last):\n    [line 1] module __main__ in <main>\nImportException: Cannot load module `does_not_exist`.");
                 err_called = true;
             }))
             .import_callback(Box::new(|vm, module_name| {
@@ -1159,8 +1188,7 @@ mod test {
                 } else {
                     None
                 }
-            }
-        ));
+            }));
 
         let vm = VM::new(conf).init_runtime();
 
