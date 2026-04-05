@@ -2,15 +2,15 @@ use jstar::{conf::Conf, error::Result, import::Module, vm::VM};
 
 fn main() -> Result<()> {
     let conf = Conf::new()
-        .error_callback(Box::new(|_, file, line, msg| {
-            if let Some(line) = line {
-                eprintln!("Error {file} [line:{line}]:");
+        .error_callback(|_, file, loc, msg| {
+            if let Some(loc) = loc {
+                eprintln!("{file}:{}:{}: error", loc.line, loc.col);
             } else {
-                eprintln!("Error {file}:");
+                eprintln!("{file}: error");
             }
             eprintln!("{msg}");
-        }))
-        .import_callback(Box::new(|_, module_name| {
+        })
+        .import_callback(|_, module_name| {
             if module_name == "hello_world" {
                 let code = "
                 fun hello()
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
             } else {
                 None
             }
-        }));
+        });
 
     let vm = VM::new(conf).init_runtime();
 

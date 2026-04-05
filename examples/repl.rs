@@ -2,14 +2,14 @@ use jstar::{self, conf::Conf, error::Result, vm::VM};
 use std::io::{self, BufRead, Write};
 
 fn main() -> Result<()> {
-    let conf = Conf::new().error_callback(Box::new(|_, file, line, msg| {
-        if let Some(line) = line {
-            eprintln!("Error {file} [line:{line}]:");
+    let conf = Conf::new().error_callback(|_, file, loc, msg| {
+        if let Some(loc) = loc {
+            eprintln!("{file}:{}:{}: error", loc.line, loc.col);
         } else {
-            eprintln!("Error {file}:");
+            eprintln!("{file}: error");
         }
         eprintln!("{msg}");
-    }));
+    });
 
     let vm = VM::new(conf).init_runtime();
 

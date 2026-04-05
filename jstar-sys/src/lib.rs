@@ -4,7 +4,6 @@ use std::os::raw::{c_char, c_int};
 pub enum JStarVM {}
 
 pub type JStarNative = extern "C" fn(*mut JStarVM) -> bool;
-
 pub type JStarRealloc = extern "C" fn(*mut (), old_sz: usize, new_sz: usize) -> *mut ();
 
 #[repr(C)]
@@ -20,7 +19,7 @@ pub enum JStarResult {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct JStarImportResult {
-    pub code: *const c_char,
+    pub code: *const c_void,
     pub code_len: usize,
     pub path: *const c_char,
     pub reg: *mut JStarNativeReg,
@@ -31,7 +30,7 @@ pub struct JStarImportResult {
 impl Default for JStarImportResult {
     fn default() -> Self {
         JStarImportResult {
-            code: std::ptr::null() as *const c_char,
+            code: std::ptr::null(),
             code_len: 0,
             path: std::ptr::null() as *const c_char,
             reg: std::ptr::null_mut(),
@@ -39,6 +38,13 @@ impl Default for JStarImportResult {
             user_data: std::ptr::null_mut() as *const c_void,
         }
     }
+}
+
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy)]
+pub struct JStarLoc {
+    pub line: c_int,
+    pub col: c_int,
 }
 
 // -----------------------------------------------------------------------------
@@ -52,7 +58,7 @@ pub type JStarErrorCB = extern "C" fn(
     vm: *mut JStarVM,
     err: JStarResult,
     file: *const c_char,
-    line: c_int,
+    loc: JStarLoc,
     error: *const c_char,
 ) -> ();
 
@@ -104,7 +110,7 @@ extern "C" {
         path: *const c_char,
         module: *const c_char,
         src: *const c_char,
-    );
+    ) -> JStarResult;
 
     pub fn jsrEval(
         vm: *mut JStarVM,
@@ -121,8 +127,8 @@ extern "C" {
         len: usize,
     ) -> JStarResult;
 
-    pub fn jsrCall(vm: *mut JStarVM, argc: u8) -> JStarResult;
-    pub fn jsrCallMethod(vm: *mut JStarVM, name: *const c_char, argc: u8);
+    pub fn jsrCall(vm: *mut JStarVM, argc: u8) -> bool;
+    pub fn bool(vm: *mut JStarVM, name: *const c_char, argc: u8) -> bool;
 }
 
 // -----------------------------------------------------------------------------
@@ -284,13 +290,15 @@ extern "C" {
         vm: *mut JStarVM,
         path: *const c_char,
         src: *const c_char,
+        len: usize,
         out: *mut JStarBuffer,
     ) -> JStarResult;
 
     pub fn jsrDisassembleCode(
         vm: *mut JStarVM,
         path: *const c_char,
-        code: *const JStarBuffer,
+        code: *const c_void,
+        size: usize,
     ) -> JStarResult;
 }
 

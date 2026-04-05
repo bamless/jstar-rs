@@ -161,6 +161,7 @@ impl<'a> VM<'a, Uninit> {
         let mut trampolines = Box::new(Trampolines {
             error_callback: conf.error_callback,
             import_callback: conf.import_callback,
+            pending_import: None,
         });
 
         let conf = ffi::JStarConf {
@@ -303,9 +304,8 @@ impl VM<'_, Init> {
     pub fn call(&mut self, argc: u8) -> Result<()> {
         assert!(self.validate_slot(-(argc as i32 + 1)));
         // SAFETY: `self.vm` is a valid pointer
-        let res = unsafe { ffi::jsrCall(self.vm, argc) };
-        if let Ok(err) = res.try_into() {
-            Err(err)
+        if !unsafe { ffi::jsrCall(self.vm, argc) } {
+            Err(Error::Runtime)
         } else {
             Ok(())
         }
@@ -676,6 +676,7 @@ impl<State> VM<'_, State> {
     /// `Ok(())` if the compilation succeded, `Err(`[`Error`]`)` otherwise.
     pub fn compile(&self, path: &str, src: &str, mut out: impl Write) -> Result<()> {
         let path = CString::new(path).expect("`path` to not contain NUL characters");
+        let src_len = src.len();
         let src = CString::new(src).expect("`src` to not contain NUL characters");
         let mut buf = ffi::JStarBuffer::default();
 
@@ -685,6 +686,7 @@ impl<State> VM<'_, State> {
                 self.vm,
                 path.as_ptr(),
                 src.as_ptr(),
+                src_len,
                 &mut buf as *mut ffi::JStarBuffer,
             )
         };
@@ -760,6 +762,16 @@ enum VMOwnership<'a> {
     NonOwned,
 }
 
+/// Holds the code and path buffers returned by an import callback until J* finalizes the import.
+///
+/// J* keeps raw pointers into these buffers after `import_trampoline` returns, so they must remain
+/// alive until the `finalize` callback fires. Storing them here (inside the already-heap-allocated
+/// `Trampolines`) avoids an extra `Box` allocation per import.
+struct PendingImport {
+    code: Vec<u8>,
+    path: CString,
+}
+
 /// Struct that owns the import and error callbacks called by J* during error handling or import
 /// resolution.
 /// In conjunction with [error_trampoline] and [import_trampoline] it enables the execution of these
@@ -767,13 +779,15 @@ enum VMOwnership<'a> {
 struct Trampolines<'a> {
     error_callback: Option<ErrorCallback<'a>>,
     import_callback: Option<ImportCallback<'a>>,
+    /// Buffers for the most-recently-resolved import, kept alive until J* calls `finalize_import`.
+    pending_import: Option<PendingImport>,
 }
 
 extern "C" fn error_trampoline(
     vm: *mut ffi::JStarVM,
     res: ffi::JStarResult,
     file: *const c_char,
-    line: c_int,
+    loc: ffi::JStarLoc,
     error: *const c_char,
 ) {
     // SAFETY: jsrGetCustomData() always returns a `*const Trampolines` by construction (see
@@ -785,7 +799,7 @@ extern "C" fn error_trampoline(
 
     if let Some(ref mut error_callback) = trampolines.error_callback {
         let err = Error::try_from(res).expect("err shouldn't be JStarResult::Success");
-        let line = if line > 0 { Some(line) } else { None };
+        let loc = if loc.line > 0 { Some(loc) } else { None };
 
         // SAFETY: `file` comes from the J* API that guarantess that is a valid cstring and utf8
         let file = unsafe { CStr::from_ptr(file) }
@@ -797,7 +811,7 @@ extern "C" fn error_trampoline(
             .to_str()
             .expect("error should be valid utf8");
 
-        error_callback(err, file, line, error);
+        error_callback(err, file, loc, error);
     }
 }
 
@@ -826,23 +840,29 @@ extern "C" fn import_trampoline(
                     Module::Binary { code, path, reg } => (code, path, reg),
                 };
 
-                struct ImportData(Vec<u8>, CString);
-                let import_data = Box::new(ImportData(code, path));
+                // Store the buffers inside the already-heap-allocated `Trampolines` so that J* can
+                // keep raw pointers into them after this function returns, without an extra `Box`.
+                // `finalize_import` will clear this field once J* is done with the pointers.
+                let pending = trampolines
+                    .pending_import
+                    .insert(PendingImport { code, path });
 
-                // Callback function that drops data allocated during `import_callback`
+                // Callback invoked by J* when it no longer needs the import buffers.
+                // `user_data` is a raw pointer to `trampolines.pending_import`.
                 extern "C" fn finalize_import(user_data: *mut c_void) {
-                    // SAFETY: user_data is a `*mut ImportData` obtained from a Box, so it is safe
-                    // to construct a new `Box` from it
-                    let _ = unsafe { Box::from_raw(user_data as *mut ImportData) };
+                    // SAFETY: user_data is always `&raw mut trampolines.pending_import`, which
+                    // points into the heap-allocated `Trampolines` that outlives this callback.
+                    let pending = unsafe { &mut *(user_data as *mut Option<PendingImport>) };
+                    *pending = None;
                 }
 
                 ffi::JStarImportResult {
-                    code: import_data.0.as_ptr() as *const c_char,
-                    code_len: import_data.0.len(),
-                    path: import_data.1.as_ptr(),
+                    code: pending.code.as_ptr() as *const c_void,
+                    code_len: pending.code.len(),
+                    path: pending.path.as_ptr(),
                     reg,
                     finalize: Some(finalize_import),
-                    user_data: Box::into_raw(import_data) as *mut _ as *mut c_void,
+                    user_data: &raw mut trampolines.pending_import as *mut c_void,
                 }
             }
         }
@@ -1119,9 +1139,9 @@ mod test {
     #[test]
     fn error_callback() {
         let mut num_errors = 0;
-        let conf = Conf::new().error_callback(Box::new(|_, _, _, _| {
+        let conf = Conf::new().error_callback(|_, _, _, _| {
             num_errors += 1;
-        }));
+        });
 
         let vm = VM::new(conf).init_runtime();
 
@@ -1144,7 +1164,7 @@ mod test {
 
     #[test]
     fn import_source() {
-        let conf = Conf::new().import_callback(Box::new(|_, module_name| {
+        let conf = Conf::new().import_callback(|_, module_name| {
             if module_name == "test" {
                 Some(Module::source(
                     "var flag = 1".to_owned(),
@@ -1153,7 +1173,7 @@ mod test {
             } else {
                 None
             }
-        }));
+        });
 
         let vm = VM::new(conf).init_runtime();
 
@@ -1173,13 +1193,13 @@ mod test {
         let mut err_called = false;
 
         let conf = Conf::new()
-            .error_callback(Box::new(|err, path, line, _| {
+            .error_callback(|err, path, line, _| {
                 assert!(matches!(err, Error::Runtime));
                 assert_eq!(path, "<string>");
                 assert!(line.is_none());
                 err_called = true;
-            }))
-            .import_callback(Box::new(|vm, module_name| {
+            })
+            .import_callback(|vm, module_name| {
                 if module_name == "test" {
                     Some(Module::binary(
                         vm.compile_in_memory("<test>", "var flag = 1").unwrap(),
@@ -1188,7 +1208,7 @@ mod test {
                 } else {
                     None
                 }
-            }));
+            });
 
         let vm = VM::new(conf).init_runtime();
 
@@ -1214,11 +1234,11 @@ mod test {
         // This should panic, as we're popping past the stack frame boundary
         // This should mantain the invariant that `string_ref` must remain valid and not dangle
         // by being popped off the stack (as will happen if the code below is permitted)
-        let conf = Conf::new().import_callback(Box::new(|vm, _| {
+        let conf = Conf::new().import_callback(|vm, _| {
             vm.pop();
             vm.pop();
             None
-        }));
+        });
 
         let vm = VM::new(conf).init_runtime();
         "string".to_jstar(&vm);

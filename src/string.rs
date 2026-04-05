@@ -100,7 +100,6 @@ impl ToJStar for String<'_> {
     /// Pushes this J* [String] onto the stack.  
     /// As the `String` is already owned by the VM, this method can skip a roundtrip through the
     /// J* stack and Rust, and directly push onto the J* stack, without copying the data.
-    /// Also see [VM::push_value].
     fn to_jstar(&self, vm: &VM) {
         // TODO: welp, need to implement dup as documented above. Copying here is pretty stupid.
         vm.push_string(self.as_ref());

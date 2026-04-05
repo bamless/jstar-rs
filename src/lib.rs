@@ -1,6 +1,7 @@
 #![warn(clippy::unwrap_used)]
 
 /// FFI bindings to the J* C API.
+pub use ffi::JStarLoc;
 pub use jstar_sys as ffi;
 
 /// Configuration options for the J* VM.

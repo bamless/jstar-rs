@@ -1,43 +1,15 @@
-use jstar_sys::JStarRealloc;
+use jstar_sys::{JStarLoc, JStarRealloc};
 
 use crate::{error::Error, ffi, import::Module, vm::VM};
 
-/// Callback invoked by the J* vm when there is an error to report
-///
-/// # Arguments
-///
-/// * `err`  - An [Error] describing which type of error we are reporting.
-/// * `file` - A string representing the file path of the module J* module reporting the error.
-/// * `line` - The line at which the error occured, or `None` if there isn't one.
-/// * `msg`  - A string that contains a formatted message describing the error.
-pub type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<i32>, &str) + 'a>;
+pub(crate) type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<JStarLoc>, &str) + 'a>;
+pub(crate) type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
 
-/// Callback invoked by the J* vm to resolve an `import` statement
-///
-/// # Arguments
-///
-/// * `vm`          - A J* [VM]
-/// * `module_name` - A string that contains the full path of the import as it appears in the J*
-///   code
-///
-/// # Returns
-///
-/// `Some(Module)` if the module was found, `None` otherwise.
-pub type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
-
-/// Callback invoked by the J* vm to allocate memory
-///
-/// # Arguments
-///
-/// * `ptr`    - The pointer to reallocate. Can be `null` or a previously allocated pointer.
-/// * `old_sz` - The old size in bytes of allocated memory. Can be 0 in case `ptr` is `null`.
-///   code
-/// * `new_sz` - The new size to allocate, in bytes
-///
-/// # Returns
-///
-/// The newly allocated memory
-pub type ReallocCallback = JStarRealloc; // TODO: integrate with rust allocators when it comes out of nightly?
+// The realloc callback is a bare `extern "C"` function pointer — unlike the error and import
+// callbacks it cannot be a Rust closure.  The C side holds no user-data pointer alongside it, and
+// the very first call allocates the `JStarVM` struct itself, so neither the VM nor `custom_data`
+// (Trampolines) exists yet.  Users who need custom allocation must write an `extern "C"` function.
+pub(crate) type ReallocCallback = JStarRealloc;
 
 /// Struct containing a set of configurations for the J* vm.
 pub struct Conf<'a> {
@@ -87,15 +59,59 @@ impl<'a> Conf<'a> {
         self
     }
 
-    /// Set the error callback returns self for chaining
-    pub fn error_callback(mut self, error_cb: ErrorCallback<'a>) -> Self {
-        self.error_callback = Some(error_cb);
+    /// Set the callback invoked by the VM when there is an error to report.
+    ///
+    /// # Arguments
+    ///
+    /// * `err`  - An [`Error`] describing the type of error being reported.
+    /// * `file` - The path of the J* module reporting the error.
+    /// * `loc`  - The source location of the error, or `None` if unavailable.
+    /// * `msg`  - A formatted message describing the error.
+    pub fn error_callback(
+        mut self,
+        error_cb: impl FnMut(Error, &str, Option<JStarLoc>, &str) + 'a,
+    ) -> Self {
+        self.error_callback = Some(Box::new(error_cb));
         self
     }
 
-    /// Set the import callback returns self for chaining
-    pub fn import_callback(mut self, import_cb: ImportCallback<'a>) -> Self {
-        self.import_callback = Some(import_cb);
+    /// Set the callback invoked by the VM to resolve an `import` statement.
+    ///
+    /// # Arguments
+    ///
+    /// * `vm`          - The J* [`VM`].
+    /// * `module_name` - The full dotted path of the module being imported, as it appears in
+    ///   the J* source.
+    ///
+    /// # Returns
+    ///
+    /// `Some(`[`Module`]`)` if the module was found, `None` to let J* fall back to its default
+    /// resolution strategy.
+    pub fn import_callback(
+        mut self,
+        import_cb: impl FnMut(&mut VM, &str) -> Option<Module> + 'a,
+    ) -> Self {
+        self.import_callback = Some(Box::new(import_cb));
+        self
+    }
+
+    /// Set the allocator used for all VM memory and returns self for chaining.
+    ///
+    /// Unlike the other callbacks, this must be a plain `extern "C"` function pointer — closures
+    /// are not supported. The C side holds no user-data pointer alongside it, and the very first
+    /// call allocates the `JStarVM` struct itself, before any Rust-side state exists.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr`     - Pointer to reallocate, or null for a fresh allocation.
+    /// * `old_sz`  - Previous allocation size in bytes (0 when `ptr` is null).
+    /// * `new_sz`  - Requested size in bytes (0 to free).
+    ///
+    /// # Returns
+    ///
+    /// A pointer to the (re)allocated memory, or null on failure / free.
+    pub fn realloc(mut self, realloc: extern "C" fn(*mut (), usize, usize) -> *mut ()) -> Self {
+        self.realloc = Some(realloc);
         self
     }
 }
