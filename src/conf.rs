@@ -2,8 +2,8 @@ use jstar_sys::{JStarLoc, JStarRealloc};
 
 use crate::{error::Error, ffi, import::Module, vm::VM};
 
-pub(crate) type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<JStarLoc>, &str) + 'a>;
-pub(crate) type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a>;
+pub(crate) type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<JStarLoc>, &str) + 'a + Send>;
+pub(crate) type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a + Send>;
 
 // The realloc callback is a bare `extern "C"` function pointer — unlike the error and import
 // callbacks it cannot be a Rust closure.  The C side holds no user-data pointer alongside it, and
@@ -69,7 +69,7 @@ impl<'a> Conf<'a> {
     /// * `msg`  - A formatted message describing the error.
     pub fn error_callback(
         mut self,
-        error_cb: impl FnMut(Error, &str, Option<JStarLoc>, &str) + 'a,
+        error_cb: impl FnMut(Error, &str, Option<JStarLoc>, &str) + 'a + Send,
     ) -> Self {
         self.error_callback = Some(Box::new(error_cb));
         self
@@ -89,7 +89,7 @@ impl<'a> Conf<'a> {
     /// resolution strategy.
     pub fn import_callback(
         mut self,
-        import_cb: impl FnMut(&mut VM, &str) -> Option<Module> + 'a,
+        import_cb: impl FnMut(&mut VM, &str) -> Option<Module> + 'a + Send,
     ) -> Self {
         self.import_callback = Some(Box::new(import_cb));
         self
