@@ -5,10 +5,6 @@ use crate::{error::Error, ffi, import::Module, vm::VM};
 pub(crate) type ErrorCallback<'a> = Box<dyn FnMut(Error, &str, Option<JStarLoc>, &str) + 'a + Send>;
 pub(crate) type ImportCallback<'a> = Box<dyn FnMut(&mut VM, &str) -> Option<Module> + 'a + Send>;
 
-// The realloc callback is a bare `extern "C"` function pointer — unlike the error and import
-// callbacks it cannot be a Rust closure.  The C side holds no user-data pointer alongside it, and
-// the very first call allocates the `JStarVM` struct itself, so neither the VM nor `custom_data`
-// (Trampolines) exists yet.  Users who need custom allocation must write an `extern "C"` function.
 pub(crate) type ReallocCallback = JStarRealloc;
 
 /// Struct containing a set of configurations for the J* vm.
@@ -97,7 +93,7 @@ impl<'a> Conf<'a> {
 
     /// Set the allocator used for all VM memory and returns self for chaining.
     ///
-    /// Unlike the other callbacks, this must be a plain `extern "C"` function pointer — closures
+    /// Unlike the other callbacks, this must be a plain `extern "C"` function pointer, closures
     /// are not supported. The C side holds no user-data pointer alongside it, and the very first
     /// call allocates the `JStarVM` struct itself, before any Rust-side state exists.
     ///
